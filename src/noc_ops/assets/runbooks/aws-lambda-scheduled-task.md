@@ -311,7 +311,7 @@ aws --profile "$P" --region "$R" cloudformation describe-stacks \
 ```bash
 FUNCTION_NAME="${STACK}-check"
 aws --profile "$P" --region "$R" lambda invoke \
-  --function-name "$FUNCTION_NAME" --invocation-type RequestResponse \
+  --function-name "$FUNCTION_NAME" --invocation-type RequestResponse --output json \
   --cli-binary-format raw-in-base64-out --payload '{"scheduled_time":"manual"}' \
   invocation-result.json > invocation-meta.json
 python3 - <<'PY'
