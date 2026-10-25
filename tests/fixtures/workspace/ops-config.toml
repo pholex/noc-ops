@@ -1,0 +1,164 @@
+# 测试夹具工作区（匿名化的 ops-config.toml；Tier 1 单测经 NOC_HOME 指到这里）
+
+[aws]
+route53_profiles = ["123456789012", "210987654321"]
+scan_regions_global = ["ap-east-1", "ap-east-2", "ap-northeast-1", "ap-northeast-2",
+                       "ap-northeast-3", "ap-southeast-1", "eu-central-1",
+                       "us-east-1", "us-east-2", "us-west-1", "us-west-2"]
+scan_regions_china = ["cn-northwest-1"]
+
+[[aws.accounts]]
+profile = "111122223333"
+partition = "china"
+[[aws.accounts]]
+profile = "123456789012"
+partition = "global"
+[[aws.accounts]]
+profile = "210987654321"
+partition = "global"
+
+[aws.alias_prefix]
+"111122223333/cn-northwest-1" = "nx"
+"123456789012/ap-northeast-1" = "tk"
+"123456789012/ap-northeast-3" = "os"
+
+[aws.jumps]
+"111122223333/cn-northwest-1" = ["sample-resource-08", "sample-resource-04"]
+
+[[aliyun.accounts]]
+profile = "acme"
+account = "1234567890123456"
+ssh_user = "root"
+ssh_key = "aliyun"
+[aliyun.accounts.regions]
+"cn-hangzhou" = ["Hangzhou", "🇨🇳"]
+
+[[aliyun.accounts]]
+profile = "acme-dns"
+account = "6543210987654321"
+
+[[gcp.accounts]]
+project = "demo-project-123456"
+configuration = "gcloud-config-1"
+ssh_user = "noc"
+ssh_key = "gce"
+
+[[gcp.accounts]]
+project = "demo-project-2"
+configuration = "gcloud-config-2"
+
+[[azure.accounts]]
+subscription = "00000000-0000-0000-0000-000000000001"
+
+[[oracle.accounts]]
+profile = "DEFAULT"
+account = "acme"
+compartment = "ocid1.tenancy.oc1..example0001"
+ssh_user = "ubuntu"
+ssh_key = "oci"
+[oracle.accounts.regions]
+"ap-tokyo-1" = ["Tokyo", "🇯🇵"]
+
+[tencent]
+account = "100000000001"
+ssh_user = "ubuntu"
+ssh_key = "tencent"
+[tencent.regions]
+"ap-nanjing" = ["Nanjing", "🇨🇳"]
+
+[[volcengine.accounts]]
+account = "2100000001"
+[volcengine.accounts.regions]
+"cn-beijing" = ["Beijing", "🇨🇳"]
+"cn-shanghai" = ["Shanghai", "🇨🇳"]
+"cn-guangzhou" = ["Guangzhou", "🇨🇳"]
+"cn-hongkong" = ["Hong Kong", "🇭🇰"]
+"ap-southeast-1" = ["Johor", "🇲🇾"]
+"ap-southeast-3" = ["Jakarta", "🇮🇩"]
+
+[[cloudflare.accounts]]
+account = "cloudflare"
+keychain_service = "noc-cloudflare"
+
+[[supabase.accounts]]
+account = "supabase"
+keychain_service = "noc-supabase"
+
+[[vmware.accounts]]
+account          = "vmware"
+url              = "https://192.0.2.20"
+username         = "admin@vsphere.local"
+keychain_service = "noc-vmware"
+
+[[sangfor.accounts]]
+account          = "sangfor"
+url              = "https://10.0.0.107:4430"
+username         = "admin"
+keychain_service = "noc-sangfor"
+
+[instance_notes]
+i-0123456789abcdef0 = "示例：边缘入口（反代 + 静态站）"
+lhins-example01 = "示例：隧道对端"
+i-0fedcba9876543210 = "示例：出口枢纽，重启影响面大"
+
+[database_notes]
+demo-db = "示例：授权备忘"
+
+[abandoned_domains]
+"example.info" = "到期未续费，主动放弃；阿里云赎回保护期内仍挂在账号下，等其自动移出后即可删除本条"
+
+[known_egress]
+"常州办公室（移动）· OpenVPN 上游国内出局" = ["203.0.113.96/28"]
+"常州跨境专线 SDWAN · OpenVPN 上游跨境出局" = ["203.0.113.190/32"]
+"深圳办公室（移动 AS9808）" = ["203.0.113.64/29"]
+"常州住宅家宽（电信，每天变，仅识别勿加白）" = ["121.231.0.0/16"]
+
+[local_net]
+probe = ["192.0.2.20:443", "10.0.0.107:4430"]
+
+[scheduler]
+timezone = "Asia/Shanghai"
+display_tz = "北京时间(UTC+8)"
+role_name = "noc-scheduler"
+
+[scheduler.dispatch]
+account = "210987654321"
+region = "ap-northeast-1"
+lambda_arn = "arn:aws:lambda:ap-northeast-1:210987654321:function:noc-reboot-dispatcher"
+
+[[scheduler.dispatch_clouds]]
+cloud = "tencent"
+account = "100000000001"
+[[scheduler.dispatch_clouds]]
+cloud = "aliyun"
+account = "1234567890123456"
+
+[[scheduler.accounts]]
+profile = "111122223333"
+partition = "aws-cn"
+regions = ["cn-northwest-1"]
+[[scheduler.accounts]]
+profile = "123456789012"
+partition = "aws"
+regions = ["ap-east-1", "ap-northeast-1", "ap-northeast-2", "ap-northeast-3",
+           "us-east-1", "us-west-1", "us-west-2"]
+[[scheduler.accounts]]
+profile = "210987654321"
+partition = "aws"
+regions = ["ap-northeast-1"]
+
+[[synology.accounts]]
+account          = "sample-resource-13"
+url              = "https://192.0.2.12:5001"
+username         = "acme-dns"
+keychain_service = "noc-sample-resource-13plus"
+keychain_account = "acme-dns@192.0.2.12"
+
+[[synology.accounts]]
+account          = "sample-resource-05"
+url              = "https://100.64.0.8:5001"
+username         = "ops-user"
+network          = "tailscale"
+keychain_service = "noc-sample-resource-05"
+keychain_account = "ops-user@100.64.0.8"
+

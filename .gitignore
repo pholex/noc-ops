@@ -1,0 +1,40 @@
+# ops sync 生成的工作区数据，不入库
+/data.json
+/local-servers.toml
+/.state/
+
+# 本地 Claude Code 设置（机器本地，不入库）
+.claude/settings.local.json
+
+# Python 打包/缓存
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+
+# macOS
+.DS_Store
+
+# 混淆分发构建产物（PyArmor，由 scripts/build-obfuscated.sh 生成）
+/build_obf/
+
+# 测试夹具工作区：只保留匿名化的 ops-config.toml，其余运行时产物不入库
+/tests/fixtures/workspace/.state/
+/tests/fixtures/workspace/runbooks/
+/tests/fixtures/workspace/data.json
+/tests/fixtures/workspace/inventory.md
+/tests/fixtures/workspace/local-servers.toml
+
+# 工作区本体：部署配置 / 清单 / 剧本，不入库
+/ops-config.toml
+/inventory.md
+/runbooks/
+# 客户端本地配置，不入库
+/.mcp.json
+/capabilities.toml
+/coscli.log
+
+# Test cache
+.pytest_cache/

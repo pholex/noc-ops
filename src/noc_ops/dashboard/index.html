@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOC · 多云运维</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="alternate icon" href="favicon.svg">
+<script src="vendor/ag-grid-community.min.js"></script>
+<style>
+  /* 自托管字体（不走第三方 CDN） */
+  @font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;
+    src:url('vendor/fonts/inter-latin-wght-normal.woff2') format('woff2');}
+  :root{
+    color-scheme: light dark;
+    --ui:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+    /* 深色 */
+    --bg:#0d1117; --card:#161b22; --border:#2a3038; --fg:#e6edf3; --muted:#8b949e;
+    --accent:#4493f8; --green:#3fb950; --red:#f85149; --yellow:#d29922;
+    --hover:rgba(255,255,255,.045); --zebra:rgba(255,255,255,.018);
+    --green-bg:rgba(63,185,80,.14); --red-bg:rgba(248,81,73,.14); --yellow-bg:rgba(210,153,34,.16);
+    --shadow:0 8px 30px rgba(0,0,0,.35); --toast-bg:#f0f6fc; --toast-fg:#0d1117;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#eef1f5; --card:#ffffff; --border:#e2e6ea; --fg:#1f2328; --muted:#6a737d;
+      --accent:#0969da; --green:#1a7f37; --red:#cf222e; --yellow:#9a6700;
+      --hover:rgba(0,0,0,.035); --zebra:rgba(0,0,0,.015);
+      --green-bg:rgba(26,127,55,.10); --red-bg:rgba(207,34,46,.09); --yellow-bg:rgba(154,103,0,.10);
+      --shadow:0 6px 24px rgba(140,149,159,.22); --toast-bg:#1f2328; --toast-fg:#ffffff;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ui);font-size:13px;
+    display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;letter-spacing:.1px}
+  header{padding:16px 22px 12px;display:flex;align-items:center;gap:14px}
+  h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.2px;display:flex;align-items:center;gap:9px}
+  h1 .sub{color:var(--muted);font-weight:400;font-size:12px;letter-spacing:.3px}
+  h1 .sub .slogan{color:var(--fg);font-weight:600}   /* 「多云运维指挥中心」加粗变黑（随主题：浅色黑/深色白）*/
+  .logo{width:9px;height:9px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .grow{flex:1}
+  .meta{color:var(--muted);font-size:12px}
+  .btn{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:7px 13px;font-size:13px;
+    font-weight:500;cursor:pointer;border:1px solid transparent;font-family:inherit;transition:.15s}
+  .btn svg{width:14px;height:14px}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-ghost{background:transparent;color:var(--fg);border-color:var(--border)}
+  .btn-ghost:hover{background:var(--hover)}
+  .btn:disabled{opacity:.55;cursor:default}
+  /* 按 tab 单刷：filter 旁的小刷新图标（只刷当前页，不全量同步） */
+  .tab-ref{display:inline-flex;align-items:center;justify-content:center;width:33px;height:33px;flex:none;
+    border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--muted);
+    cursor:pointer;transition:.15s;padding:0}
+  .tab-ref:hover{color:var(--accent);border-color:color-mix(in srgb,var(--border) 50%,var(--fg) 20%)}
+  .tab-ref:disabled{opacity:.6;cursor:default}
+  .tab-ref svg{width:15px;height:15px}
+  .tab-ref.spinning svg{animation:r .7s linear infinite}
+  .bar{padding:0 22px 14px;display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  select,.search input{background:var(--card);border:1px solid var(--border);color:var(--fg);
+    border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;transition:.15s}
+  select:hover,.search:hover input{border-color:color-mix(in srgb,var(--border) 50%,var(--fg) 20%)}
+  select:focus,.search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+  .search{position:relative;display:flex;align-items:center}
+  .search svg{position:absolute;left:10px;width:14px;height:14px;color:var(--muted);pointer-events:none}
+  .search input{padding-left:32px;min-width:260px}
+  kbd{font-family:var(--mono);font-size:10px;color:var(--muted);border:1px solid var(--border);
+    border-radius:4px;padding:1px 5px;position:absolute;right:9px;background:var(--bg)}
+  #grid{flex:1;min-height:0;margin:0 22px 22px;border:1px solid var(--border);border-radius:12px;
+    overflow:hidden;box-shadow:var(--shadow);background:var(--card)}
+  .mono{font-family:var(--mono) !important;font-size:12px;letter-spacing:0}
+  .dim{opacity:.62}
+  .dist-ic{display:inline-flex;align-items:center;color:#2da44e}
+  .dist-ic svg{width:16px;height:16px}
+  @media(prefers-color-scheme:dark){.dist-ic{color:#3fb950}}
+  /* 状态 pill */
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;
+    font-size:11.5px;font-weight:500;line-height:1.7;text-transform:capitalize}
+  .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .pill-running{color:var(--green);background:var(--green-bg)}
+  .pill-stopped{color:var(--red);background:var(--red-bg)}
+  .pill-other{color:var(--yellow);background:var(--yellow-bg)}
+  .pill-pending{color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,transparent)}
+  .alias{color:var(--accent);cursor:pointer}
+  .idcell{display:inline-flex;align-items:center;gap:7px}
+  .copy-ic{display:inline-flex;align-items:center;color:var(--muted);opacity:0;transition:opacity .15s}
+  .copy-ic svg{width:13px;height:13px}
+  .ag-cell:hover .copy-ic{opacity:.75}
+  .jump{color:var(--yellow)}
+  .ssm{opacity:.7;font-style:italic}
+  .cloud-aws{color:#7c3aed;font-weight:500}
+  .cloud-tencent{color:#00a4ff;font-weight:500}
+  .cloud-aliyun{color:#ff9900;font-weight:500}
+  .cloud-volcengine{color:#1664ff;font-weight:500}
+  .cloud-gcp{color:#4285f4;font-weight:500}
+  .cloud-cloudflare{color:#f6821f;font-weight:500}
+  .cloud-supabase{color:#3ecf8e;font-weight:500}
+  .cloud-azure{color:#0078d4;font-weight:500}
+  .cloud-oracle{color:#f80000;font-weight:500}
+  .cloud-local{color:#16a34a;font-weight:500}
+  .cloud-sangfor{color:#e05c26;font-weight:500}
+  .cloud-vmware{color:#607078;font-weight:500}
+  .cloud-synology{color:#b5a642;font-weight:500}
+  .k-sqs{color:var(--accent);font-weight:500}
+  .k-sns{color:#a371f7;font-weight:500}
+  .k-ses{color:var(--green);font-weight:500}
+  .k-eb{color:var(--yellow);font-weight:500}
+  .tabs{display:flex;gap:6px;padding:0 22px 12px}
+  .tab{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;
+    padding:6px 15px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:.15s}
+  .tab:hover{color:var(--fg)}
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .tab b{font-weight:600;opacity:.8;font-size:12px}
+  .days-soon{color:var(--red);font-weight:600}
+  .days-warn{color:var(--yellow);font-weight:600}
+  .unver{color:var(--yellow);font-size:10px;border:1px solid color-mix(in srgb,var(--yellow) 45%,transparent);
+    border-radius:4px;padding:0 5px;margin-left:7px;vertical-align:1px}
+  #toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--toast-bg);
+    color:var(--toast-fg);padding:10px 18px;border-radius:10px;font-size:13px;font-weight:500;opacity:0;
+    transition:.22s;pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  /* 详情单元格全文浮层：字体与「详情」格一致（mono 12px、.dim 的 .62 透明感），盖住单元格、加淡底色 */
+  .cell-tip{position:fixed;z-index:9999;display:none;max-width:760px;padding:5px 9px;
+    font-family:var(--mono);font-size:12px;line-height:1.5;letter-spacing:0;
+    color:var(--fg);opacity:.94;
+    background:color-mix(in srgb,var(--accent) 8%,var(--card));
+    border:1px solid color-mix(in srgb,var(--accent) 48%,var(--border));border-radius:8px;
+    white-space:pre-wrap;word-break:break-word;pointer-events:none;
+    /* 突出的立体浮出感：强调色描边光环 + 双层投影，明确与下方内容分离 */
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 13%,transparent),
+               var(--shadow), 0 16px 38px rgba(0,0,0,.34)}
+  .cell-tip .tx{opacity:.62}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-top-color:transparent;
+    border-radius:50%;animation:r .7s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+  /* 概览区：汇总卡片 + 需要关注 */
+  .overview{padding:2px 22px 14px;display:flex;flex-direction:column;gap:10px}
+  .ov-cards{display:flex;gap:9px;flex-wrap:wrap}
+  /* 默认卡片：宽 103（内容区 75 + 内边距 13×2 + 边框 1×2，border-box），高度不固定、由同行最高卡 stretch 齐平；
+     带明细的宽卡(.ov-wide)宽度按内容自适应 */
+  .ov-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 13px;
+    width:103px;flex:0 0 auto;cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:3px}
+  .ov-card.ov-wide{width:auto;max-width:240px}
+  .ov-card.ov-inst{width:165px}                   /* 实例：固定 165（明细行超长则省略号） */
+  .ov-card.ov-msg{width:190px}                    /* 消息事件：固定 190 */
+  .ov-card.ov-bill{width:165px}                   /* 本月成本：固定 165 */
+  .ov-card.ov-bill.ov-wide{width:auto;min-width:165px;max-width:240px}   /* 美元+人民币双币并列时按内容放宽 */
+  .ov-card.ov-wide .ov-meta{overflow:hidden;text-overflow:ellipsis}
+  .ov-card:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--border));transform:translateY(-1px);box-shadow:var(--shadow)}
+  .ov-k{font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.3px;white-space:nowrap}
+  .ov-v{font-size:21px;font-weight:600;line-height:1.15;display:flex;align-items:baseline;gap:9px}
+  .ov-sub{font-size:12px;font-weight:500;color:var(--muted);display:inline-flex;align-items:center;gap:9px}
+  .ov-sub i{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:1px}
+  .dot-g{background:var(--green)} .dot-r{background:var(--red)} .dot-y{background:var(--yellow)}
+  .ov-meta{font-size:11px;color:var(--muted);white-space:nowrap}
+  .ov-meta.warn{color:var(--yellow);font-weight:500}
+  .ov-att{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:26px}
+  .att-label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.4px}
+  .att-chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 13px;font-size:12px;
+    font-weight:500;cursor:pointer;border:1px solid transparent;font-family:inherit;transition:.15s}
+  .att-chip .q{opacity:.7;font-weight:400}
+  .att-chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .att-red{color:var(--red);background:var(--red-bg);border-color:color-mix(in srgb,var(--red) 28%,transparent)}
+  .att-warn{color:var(--yellow);background:var(--yellow-bg);border-color:color-mix(in srgb,var(--yellow) 28%,transparent)}
+  .att-red:hover,.att-warn:hover{filter:brightness(1.08)}
+  .att-ok{color:var(--green);background:var(--green-bg);cursor:default}
+  /* 纳管范围面板（只读，非 grid，仿 #grid 容器）*/
+  #ops-config-panel{flex:1;min-height:0;margin:0 22px 22px;border:1px solid var(--border);
+    border-radius:12px;overflow:auto;box-shadow:var(--shadow);background:var(--card);
+    display:none;flex-direction:column;gap:18px;padding:18px 20px}
+  .oc-chips{display:flex;gap:10px;flex-wrap:wrap}
+  .oc-chip{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;color:var(--muted)}
+  .oc-chip b{color:var(--fg);font-size:14px;margin-right:3px}
+  .oc-sec{display:flex;flex-direction:column;gap:8px}
+  .oc-h{font-size:13px;font-weight:600;color:var(--fg);display:flex;align-items:center;gap:7px}
+  .oc-h::before{content:"";width:4px;height:14px;border-radius:2px;background:var(--accent)}
+  .oc-table{width:100%;border-collapse:collapse;font-size:12px}
+  .oc-table th{text-align:left;color:var(--muted);font-weight:600;padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px}
+  .oc-table td{padding:5px 10px;border-bottom:1px solid var(--border);color:var(--fg)}
+  .oc-table tr:last-child td{border-bottom:none}
+  .oc-warn{color:var(--yellow)}
+  .oc-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+  .oc-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 13px;font-size:12px;display:flex;flex-direction:column;gap:5px}
+  .oc-card .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+  .oc-card .v{font-family:var(--mono);color:var(--fg);word-break:break-all}
+  .oc-foot{font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:12px;margin-top:2px}
+  .collection-health{margin:0 22px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);flex-shrink:0}
+  .collection-health summary{padding:10px 12px;cursor:pointer;color:var(--muted)}
+  .collection-health[data-warning="true"] summary{color:var(--yellow)}
+  .collection-health p{padding:0 12px;color:var(--muted);line-height:1.6}
+  .collection-health .status-table{overflow:auto;max-height:260px}
+  .collection-health table{border-collapse:collapse;width:100%;white-space:nowrap;font-size:12px}
+  .collection-health th,.collection-health td{padding:8px 12px;text-align:left;border-top:1px solid var(--border)}
+  .collection-health th{color:var(--muted);font-weight:500}
+  .collection-health tr[data-status="error"]{color:var(--yellow)}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="logo"></span> NOC <span class="sub"><span class="slogan">多云运维指挥中心</span><span id="supported-clouds" style="opacity:.85"></span></span></h1>
+  <div class="grow"></div>
+  <span class="meta" id="ts"></span>
+  <button class="btn btn-ghost" onclick="exportCsv()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>CSV</button>
+  <button class="btn btn-primary" id="refresh" onclick="refresh()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7M21 3v5h-5"/></svg>刷新</button>
+</header>
+<details class="collection-health" id="collection-health">
+  <summary id="collection-summary">采集状态尚未记录</summary>
+  <p>时间按云账号与资源类型分别记录；看板文件更新时间不代表所有资源都已重新采集。</p>
+  <div class="status-table" id="collection-table"></div>
+</details>
+<div class="overview" id="overview"></div>
+<div class="tabs">
+  <button class="tab active" id="tab-instances" onclick="switchView('instances')">实例 <b id="cnt-i"></b></button>
+  <button class="tab" id="tab-domains" onclick="switchView('domains')">域名 <b id="cnt-d"></b></button>
+  <button class="tab" id="tab-databases" onclick="switchView('databases')">数据库 <b id="cnt-db"></b></button>
+  <button class="tab" id="tab-storage" onclick="switchView('storage')">对象存储 <b id="cnt-st"></b></button>
+  <button class="tab" id="tab-serverless" onclick="switchView('serverless')">函数 <b id="cnt-fn"></b></button>
+  <button class="tab" id="tab-cdn" onclick="switchView('cdn')">CDN <b id="cnt-cdn"></b></button>
+  <button class="tab" id="tab-iam" onclick="switchView('iam')">IAM <b id="cnt-iam"></b></button>
+  <button class="tab" id="tab-apikeys" onclick="switchView('apikeys')">AI 密钥 <b id="cnt-ak"></b></button>
+  <button class="tab" id="tab-messaging" onclick="switchView('messaging')">消息/事件 <b id="cnt-msg"></b></button>
+  <button class="tab" id="tab-billing" onclick="switchView('billing')">成本 <b id="cnt-bill"></b></button>
+  <button class="tab" id="tab-scheduled" onclick="switchView('scheduled')">计划任务 <b id="cnt-sch"></b></button>
+  <button class="tab" id="tab-runbooks" onclick="switchView('runbooks')">剧本 <b id="cnt-rb"></b></button>
+  <button class="tab" id="tab-ops_log" onclick="switchView('ops_log')">操作日志 <b id="cnt-ol"></b></button>
+  <button class="tab" id="tab-ops_config" onclick="switchView('ops_config')">纳管范围 <b id="cnt-oc"></b></button>
+</div>
+<div class="bar" id="bar">
+  <span style="display:flex;gap:9px">
+    <select id="f-account" onchange="onFilter()"><option value="">全部账号</option></select>
+    <span id="inst-filters" style="display:flex;gap:9px">
+      <select id="f-region" onchange="onFilter()"><option value="">全部区域</option></select>
+      <select id="f-state" onchange="onFilter()"><option value="">全部状态</option></select>
+    </span>
+    <span id="msg-filters" style="display:none;gap:9px">
+      <select id="f-kind" onchange="onFilter()"><option value="">全部类型</option></select>
+    </span>
+    <span id="billing-filters" style="display:none;gap:9px">
+      <select id="f-month" onchange="onFilter()"><option value="">全部月份</option></select>
+    </span>
+  </span>
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input type="search" id="f-q" placeholder="搜索 名称 / IP / 实例ID / 类型" oninput="onQuick()">
+    <kbd>/</kbd>
+  </div>
+  <button class="tab-ref" id="tab-refresh" onclick="refreshTab()" title="只刷新当前页（不全量同步，更快）" style="margin-left:auto">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7M21 3v5h-5"/></svg>
+  </button>
+  <span class="meta" id="count" style="text-align:right"></span>
+</div>
+<div id="grid"></div>
+<div id="ops-config-panel"></div>
+<div id="toast"></div>
+
+<script>
+const { createGrid, themeQuartz, colorSchemeDark, colorSchemeLight, ModuleRegistry, AllCommunityModule } = agGrid;
+ModuleRegistry.registerModules([AllCommunityModule]);
+const LS='noc.state.v4';
+const REGION_ORDER=['Hong Kong','Taibei','Tokyo','Seoul','Osaka','Singapore','Frankfurt','Virginia','Ohio','California','Oregon','Ningxia','Nanjing','Hangzhou','Beijing','Shanghai','Guangzhou','Johor','Jakarta'];
+const CLOUD_RANK={aws:0,aliyun:1,tencent:2,volcengine:3,gcp:4,azure:5,oracle:6,cloudflare:7,sangfor:8,vmware:9,local:10,supabase:11,synology:12};  // 云厂商顺序
+const CLOUD_LABEL={tencent:'腾讯云',aliyun:'阿里云',volcengine:'火山引擎',gcp:'Google',supabase:'Supabase',azure:'Azure',oracle:'Oracle',local:'本地',sangfor:'Sangfor HCI',vmware:'VMware ESX',synology:'Synology NAS'};   // cloud 字段→显示名（缺省 AWS）；单一来源，实例列与 cloudCol 共用
+const cloudName=v=>CLOUD_LABEL[v]||(v==='aws'?'AWS':v||'AWS');
+const REGISTRAR_RANK={'AWS Route53':0,'阿里云':1,'腾讯云':2,'火山引擎':3,'Cloudflare':4,'Azure DNS':5,'OCI DNS':6,'Google Cloud':7};
+const byRank=(rank)=>(a,b)=>(rank[a]??9)-(rank[b]??9);
+const UIFONT='Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif';
+
+function pill(state){
+  const ok = ["running", "available"].includes(state);
+  const cls = ok ? "pill-running" : state==="stopped" ? "pill-stopped" : "pill-other";
+  const e=document.createElement('span'); e.className='pill '+cls; e.textContent=state; return e;
+}
+// 计划任务的执行状态：按调度属性 + 当前时间实时推导（不存进 data.json，保证打开即准）
+const ES_CLS={'循环中':'pill-running','待执行':'pill-pending','已过期':'pill-other','已停用':'pill-stopped'};
+function execStatus(d){
+  if(!d) return '';
+  if(d.state==='DISABLED') return '已停用';
+  if(d.kind==='循环') return '循环中';
+  const t=d.next_run||d.expr||'';                       // 一次性时间（北京时间 UTC+8）
+  if(/^\d{4}-\d{2}-\d{2}T/.test(t)) return new Date(t+'+08:00').getTime()>Date.now()?'待执行':'已过期';
+  return '待执行';
+}
+// 可点击复制的单元格：文字 + hover 时显现的小复制图标
+function copyableCell(value){
+  const w=document.createElement('span'); w.className='idcell';
+  const t=document.createElement('span'); t.textContent=value; w.appendChild(t);
+  const ic=document.createElement('span'); ic.className='copy-ic';
+  ic.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>';
+  w.appendChild(ic); return w;
+}
+// 可点击打开的单元格：文字 + hover 时显现的小「外链」图标（用于剧本名 → 打开 markdown）
+function openableCell(value){
+  const w=document.createElement('span'); w.className='idcell';
+  const t=document.createElement('span'); t.textContent=value; w.appendChild(t);
+  const ic=document.createElement('span'); ic.className='copy-ic';
+  ic.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M19 13v6a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1h6"/></svg>';
+  w.appendChild(ic); return w;
+}
+// 长文单元格：仅当文字被截断（溢出成省略号）时，hover 才用自定义浮层显示全文；没截断就不弹。
+// 截断与否在 hover 时实测（scrollWidth>clientWidth），故列宽拖动后判断始终准确。
+// 用自定义浮层（非原生 title）是为了能控制字号/宽度——原生 title 无法 CSS 化。
+let _cellTip;
+function _ensureCellTip(){
+  if(!_cellTip){ _cellTip=document.createElement('div'); _cellTip.className='cell-tip';
+    document.body.appendChild(_cellTip); }
+  return _cellTip;
+}
+function truncTip(value){
+  const v = value==null ? '' : String(value);
+  const s = document.createElement('span');
+  s.textContent = v;
+  s.style.cssText = 'display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  s.addEventListener('mouseenter', ()=>{
+    if(s.scrollWidth <= s.clientWidth + 1) return;   // 没截断不弹
+    const tip=_ensureCellTip();
+    tip.innerHTML=''; const tx=document.createElement('span'); tx.className='tx'; tx.textContent=v;
+    tip.appendChild(tx);
+    const r=s.getBoundingClientRect();
+    tip.style.minWidth=r.width+'px';                 // 至少盖住整格宽
+    tip.style.display='block';
+    let left=r.left, top=r.top;                       // 左上角对齐 → 正好盖住单元格，文字原位展开
+    if(left+tip.offsetWidth > innerWidth-8) left=Math.max(8, innerWidth-8-tip.offsetWidth);
+    if(top+tip.offsetHeight > innerHeight-8) top=Math.max(8, innerHeight-8-tip.offsetHeight);
+    tip.style.left=left+'px'; tip.style.top=top+'px';
+  });
+  s.addEventListener('mouseleave', ()=>{ if(_cellTip) _cellTip.style.display='none'; });
+  return s;
+}
+function openRunbook(name){ if(name) window.open('/runbook?name='+encodeURIComponent(name),'_blank'); }
+// 本地机无 ssh_alias 时，判断是否可开网页终端：cloud=local + 有 ssh_user + 非 Windows(mstsc)
+function _canTerminal(d){ return d.cloud==='local' && d.ssh_user && d.connect && !d.connect.startsWith('mstsc') && !d.connect.startsWith('http'); }
+// 点连接列的终端图标：后端按需起 ttyd（一次性 + token 隔离），新标签打开网页 SSH
+function launchTerminal(id){
+  toast('正在打开终端…');
+  fetch('/api/terminal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instance_id:id})})
+    .then(r=>r.json()).then(d=>{
+      if(d.ok){ toast('已打开终端 '+(d.alias||'')); window.open(d.url,'_blank'); }
+      else toast('终端失败：'+(d.error||'未知'));
+    }).catch(()=>toast('终端请求失败'));
+}
+
+const COLS = [
+  {field:'state', headerName:'状态', width:112, cellRenderer:p=>pill(p.value)},
+  {field:'cloud', headerName:'云', width:90,
+     valueFormatter:p=>cloudName(p.value),
+     cellClass:p=>'cloud-'+(p.value||'aws'), comparator:byRank(CLOUD_RANK)},
+  {field:'name', headerName:'名称', width:255, cellRenderer:p=>{
+      const e=document.createElement('span'); e.textContent=p.value;
+      if(p.data.cloud==='vmware'&&p.data.desc){
+        const d=document.createElement('span');d.className='dim';d.style.marginLeft='4px';d.textContent=p.data.desc;e.appendChild(d);}
+      if(p.data.cloud==='aws'&&!p.data.verified){const t=document.createElement('span');t.className='unver';t.textContent='未验证';e.appendChild(t);}
+      return e;}},
+  {field:'profile', headerName:'账号', width:135, cellClass:'mono'},
+  {colId:'region', headerName:'区域', width:135, valueGetter:p=>p.data.flag+' '+p.data.region_display,
+     filterValueGetter:p=>p.data.region_display},
+  {field:'type', headerName:'类型', width:120, cellClass:'mono'},
+  {field:'private_ip', headerName:'私网 IP', width:145, cellClass:'mono'},
+  {field:'public_ip', headerName:'公网 IP', width:145,
+     cellClass:p=>p.value?'alias mono':'mono dim',
+     onCellClicked:p=>{ if(p.value) copyCell(p.value); },
+     cellRenderer:p=>p.value?copyableCell(p.value):'—'},
+  {field:'id', headerName:'实例 ID', width:205, cellClass:'alias mono',
+     onCellClicked:p=>copyCell(p.value),
+     cellRenderer:p=>copyableCell(p.value)},
+  {field:'ssh_user', headerName:'用户', width:100, valueFormatter:p=>p.data.connect==='ssm'?'—':(p.value||'?')},
+  {colId:'connect', headerName:'连接', width:150,
+     // ssm = AWS 实例无密钥对：设计上不开 SSH，只能 SSM Session Manager（无别名、不开网页终端）
+     valueGetter:p=>p.data.connect==='ssm'?'SSM':p.data.connect==='jump'?('经 '+(p.data.proxyjump||'跳板')):'直连',
+     cellClass:p=>p.data.connect==='jump'?'jump':p.data.connect==='ssm'?'ssm':'',
+     cellStyle:p=>(p.data.ssh_alias||_canTerminal(p.data))?{cursor:'pointer'}:null,
+     onCellClicked:p=>{ if(p.data.ssh_alias||_canTerminal(p.data)) launchTerminal(p.data.id); },
+     cellRenderer:p=>{
+       const w=document.createElement('span'); w.className='idcell';
+       const t=document.createElement('span'); t.textContent=p.value; w.appendChild(t);
+       if(p.data.ssh_alias||_canTerminal(p.data)){
+         const ic=document.createElement('span'); ic.className='copy-ic';
+         ic.title='打开网页终端 SSH（'+(p.data.ssh_alias||p.data.ssh_user+'@'+p.data.private_ip)+'）';
+         ic.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 16h4"/></svg>';
+         w.appendChild(ic);
+       }
+       return w;
+     }},
+];
+
+const DOMAIN_COLS=[
+  {field:'domain', headerName:'域名', width:230, cellClass:'alias mono',
+     onCellClicked:p=>copyCell(p.value), cellRenderer:p=>copyableCell(p.value)},
+  {field:'registrar', headerName:'注册商', width:120, comparator:byRank(REGISTRAR_RANK),
+     cellClass:p=>({'AWS Route53':'cloud-aws','腾讯云':'cloud-tencent','火山引擎':'cloud-volcengine','Cloudflare':'cloud-cloudflare','Azure DNS':'cloud-azure','OCI DNS':'cloud-oracle','Google Cloud':'cloud-gcp'}[p.value]||'cloud-aliyun')},
+  {field:'type', headerName:'类型', width:100},
+  {field:'account', headerName:'账号', width:155, cellClass:'mono dim'},
+  {field:'expire_date', headerName:'到期日期', width:130, cellClass:'mono'},
+  // 剩余天数：已放弃的域名（ops-config.toml 的 [abandoned_domains]）不走临期告警色，
+  // 标成灰色「已放弃」，原天数与放弃原因挂 title 里备查——到期是预期结果，不是待办。
+  {field:'days_left', headerName:'剩余', width:110,
+     cellRenderer:p=>{const e=document.createElement('span'); const d=p.value;
+        const why=p.data&&p.data.abandoned;
+        if(why){ e.className='dim'; e.textContent='已放弃';
+                 e.title=(d==null?'':d+' 天 · ')+why; return e; }
+        if(d==null){e.textContent='—';return e;}
+        e.className = d<=30?'days-soon':d<=60?'days-warn':'';
+        e.textContent=d+' 天'; return e;}},
+  {field:'note', headerName:'备注', width:170, tooltipField:'note',
+     cellClass:p=>String(p.value||'').includes('⚠')?'days-warn':'dim'},
+];
+const cloudCol = (w=90)=>({field:'cloud', headerName:'云', width:w, comparator:byRank(CLOUD_RANK),
+  valueFormatter:p=>p.node.rowPinned?'':cloudName(p.value), cellClass:p=>p.node.rowPinned?'':'cloud-'+(p.value||'aws')});
+const DB_COLS=[
+  {field:'name', headerName:'名称', width:200, cellClass:'mono'},
+  cloudCol(),
+  {field:'account', headerName:'账号', width:140, cellClass:'mono dim'},
+  {field:'region_display', headerName:'区域', width:110},
+  {field:'engine', headerName:'引擎', width:150},
+  {field:'class', headerName:'规格', width:135, cellClass:'mono'},
+  {field:'storage', headerName:'存储', width:130, cellClass:'mono'},
+  {field:'state', headerName:'状态', width:118, cellRenderer:p=>pill(p.value)},
+  {field:'endpoint', headerName:'端点', width:320, cellClass:'alias mono',
+     onCellClicked:p=>{ if(p.value && p.value!=='—') copyCell(p.value); }},
+  {field:'note', headerName:'用途', width:260, cellClass:'dim', tooltipField:'note'},
+];
+const ST_COLS=[
+  {field:'name', headerName:'桶名', width:360, cellClass:'alias mono',
+     onCellClicked:p=>copyCell(p.value), cellRenderer:p=>copyableCell(p.value)},
+  {field:'domain', headerName:'域名', width:260, cellClass:'mono',
+     onCellClicked:p=>{ if(p.value && p.value!=='—') copyCell(p.value); },
+     cellRenderer:p=>p.value?copyableCell(p.value):'—'},
+  cloudCol(),
+  {field:'account', headerName:'账号', width:140, cellClass:'mono dim'},
+  {field:'region_display', headerName:'区域', width:120},
+  {field:'created', headerName:'创建日期', width:130, cellClass:'mono'},
+];
+const LAMBDA_COLS=[
+  {field:'name', headerName:'函数名', width:260, cellClass:'mono'},
+  cloudCol(),
+  {field:'account', headerName:'账号', width:140, cellClass:'mono dim'},
+  {field:'region_display', headerName:'区域', width:110},
+  {field:'runtime', headerName:'运行时', width:120, cellClass:'mono'},
+  {field:'memory', headerName:'内存MB', width:90},
+  {field:'timeout', headerName:'超时s', width:80},
+  {field:'code_mb', headerName:'代码MB', width:90},
+  {field:'last_modified', headerName:'最后修改', width:120, cellClass:'mono'},
+];
+const CDN_COLS=[
+  {field:'domain', headerName:'对外域名', width:260, cellClass:'alias mono',
+     onCellClicked:p=>{ if(p.value && p.value!=='—') copyCell(p.value); },
+     cellRenderer:p=>p.value?copyableCell(p.value):'—'},
+  cloudCol(),
+  {field:'partition', headerName:'分区', width:96},
+  {field:'account', headerName:'账号', width:140, cellClass:'mono dim'},
+  {field:'origin', headerName:'源站', width:300, cellClass:'mono dim', cellRenderer:p=>truncTip(p.value)},
+  {field:'status', headerName:'状态', width:118, cellRenderer:p=>pill(p.value)},
+  {field:'enabled', headerName:'启用', width:80, cellRenderer:p=>p.value?'✓':'✗'},
+  {field:'cert', headerName:'证书', width:110, cellClass:'mono'},
+  {field:'price_class', headerName:'价格档', width:90, cellClass:'mono dim'},
+  {field:'id', headerName:'分布ID', width:170, cellClass:'mono dim'},
+  {field:'last_modified', headerName:'最后修改', width:120, cellClass:'mono'},
+];
+const IAM_COLS=[
+  {field:'name', headerName:'用户', width:200, cellClass:'mono'},
+  cloudCol(),
+  {field:'account', headerName:'账号', width:140, cellClass:'mono dim'},
+  {field:'created', headerName:'创建', width:120, cellClass:'mono'},
+  {field:'last_used', headerName:'上次登录', width:120, cellClass:'mono dim'},
+  {field:'key_count', headerName:'密钥数', width:90},
+  {field:'oldest_key_days', headerName:'最老密钥', width:120,
+     cellRenderer:p=>{const e=document.createElement('span'); const d=p.value;
+        if(d==null){e.textContent='—';return e;}
+        e.className = d>365?'days-soon':d>180?'days-warn':'';   // 旧密钥=风险
+        e.textContent=d+' 天'; return e;}},
+  // 角色/备注：GCP IAM 用它承载「主体类型 + 角色清单」；AWS 行无此字段，显示 —
+  {field:'detail', headerName:'角色/备注', flex:1, minWidth:240, suppressSizeToFit:false, cellClass:'mono dim',
+     cellRenderer:p=>truncTip(p.value)},
+];
+// AI 密钥：只有元数据（data.json 里从不含密钥串）。无限制 key 标红——Google 已在封禁闲置的无限制 key。
+const APIKEY_COLS=[
+  {field:'name', headerName:'名称', width:190, cellClass:'mono'},
+  cloudCol(),
+  {field:'account', headerName:'账号/项目', width:210, cellClass:'mono dim'},
+  {field:'purpose', headerName:'限定 API', width:150,
+     cellRenderer:p=>{const e=document.createElement('span');
+        if(p.data.unrestricted){e.className='days-soon'; e.textContent='⚠️ 无限制';}
+        else e.textContent=p.value||'—'; return e;}},
+  {field:'key_type', headerName:'类型', width:100},
+  {field:'status', headerName:'状态', width:90, cellClass:p=>p.value==='Inactive'?'days-warn':''},
+  // 绑定身份：GCP 授权 key 绑服务账号，AWS Bedrock key 绑 IAM 用户
+  {field:'service_account', headerName:'绑定身份', width:270, cellClass:'mono dim',
+     cellRenderer:p=>truncTip(p.value||'—')},
+  {field:'client_restriction', headerName:'客户端限制', width:110, valueFormatter:p=>p.value||'无'},
+  {field:'created', headerName:'创建', width:120, cellClass:'mono'},
+  {field:'age_days', headerName:'已用', width:100,
+     cellRenderer:p=>{const e=document.createElement('span'); const d=p.value;
+        if(d==null){e.textContent='—';return e;}
+        e.className = d>365?'days-soon':d>180?'days-warn':'';   // 密钥该轮换了
+        e.textContent=d+' 天'; return e;}},
+  {field:'expires', headerName:'过期', width:120, cellClass:'mono dim', valueFormatter:p=>p.value||'—'},
+  {field:'id', headerName:'Key ID', flex:1, minWidth:240, suppressSizeToFit:false, cellClass:'alias mono dim',
+     onCellClicked:p=>copyCell(p.value), cellRenderer:p=>copyableCell(p.value)},
+];
+const MSG_COLS=[
+  {field:'kind', headerName:'类型', width:118, cellClass:p=>(
+     {SQS:'k-sqs',SNS:'k-sns',SES:'k-ses',EventBridge:'k-eb'}[p.value]||'')+' mono'},
+  {field:'name', headerName:'名称', width:340, cellClass:'alias mono',
+     onCellClicked:p=>copyCell(p.value), cellRenderer:p=>copyableCell(p.value)},
+  {field:'account', headerName:'账号', width:140, cellClass:'mono dim'},
+  {colId:'region', headerName:'区域', width:130, valueGetter:p=>p.data.flag+' '+p.data.region_display,
+     filterValueGetter:p=>p.data.region_display},
+  {field:'detail', headerName:'详情', width:300, cellClass:'dim'},
+];
+const CUR_SYM={USD:'$',CNY:'¥'};
+const money=(v,cur)=>(v==null?'':(CUR_SYM[cur]||'')+Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
+// 成本按币种分列（USD=全球分区、CNY=aws-cn）：**不做汇率折算**，一行只落在自己币种那列，另一列留空。
+// 合计同理各列独立（updateBillingTotal），底部合计行用 amount_usd/amount_cny 字段直接喂值。
+const amountCol=(cur,extra={})=>({
+  colId:'amount_'+cur.toLowerCase(), headerName:`金额 (${cur})`, width:150,
+  // 金额右对齐：type:'numericColumn' 只给表头挂 ag-right-aligned-header，单元格那半靠它自带的
+  // cellClass —— 而 colDef 自己的 cellClass 会**整体覆盖**列类型的同名属性，故必须显式并列写上。
+  type:'numericColumn', cellClass:['mono','ag-right-aligned-cell'],
+  valueGetter:p=>{const d=p.data; if(!d) return null;
+     return d._total ? d['amount_'+cur.toLowerCase()] : (d.currency===cur ? d.amount : null);},
+  valueFormatter:p=>money(p.value,cur), ...extra});
+const BILLING_COLS=[
+  {field:'account', headerName:'账号', width:150, cellClass:'mono dim'},
+  cloudCol(),
+  {field:'service', headerName:'服务', flex:1, minWidth:280, suppressSizeToFit:false, cellClass:'mono'},
+  {field:'month', headerName:'月份', width:140, cellClass:'mono',
+     valueFormatter:p=>(p.value||'')+(p.data&&p.data.partial?' (至今)':'')},
+  amountCol('USD',{sort:'desc'}),
+  amountCol('CNY'),
+];
+const SCHED_COLS=[
+  {colId:'exec', headerName:'执行状态', width:104, valueGetter:p=>execStatus(p.data),
+     cellRenderer:p=>{const e=document.createElement('span');
+        e.className='pill '+(ES_CLS[p.value]||'pill-other'); e.textContent=p.value; return e;}},
+  {field:'state', headerName:'启用', width:90, cellRenderer:p=>{
+     const e=document.createElement('span'); const on=p.value==='ENABLED';
+     e.className='pill '+(on?'pill-running':'pill-stopped'); e.textContent=on?'启用':'停用'; return e;}},
+  {field:'kind', headerName:'类型', width:88, cellRenderer:p=>{
+     const e=document.createElement('span'); e.className='pill '+(p.value==='循环'?'pill-other':'pill-running');
+     e.textContent=p.value; return e;}},
+  {field:'instance', headerName:'目标实例', width:190, cellClass:'mono'},
+  {field:'instance_id', headerName:'实例 ID', width:200, cellClass:'alias mono',
+     onCellClicked:p=>copyCell(p.value), cellRenderer:p=>copyableCell(p.value)},
+  {field:'action', headerName:'动作', width:78},
+  {field:'expr', headerName:'执行时间 / 表达式', width:215, cellClass:'mono',
+     valueFormatter:p=>{const v=p.value||''; return /^\d{4}-\d{2}-\d{2}T/.test(v)?v.replace('T',' ').slice(0,16):v;}},
+  {field:'timezone', headerName:'时区', width:120, cellClass:'mono dim'},
+  {field:'account', headerName:'账号', width:140, cellClass:'mono dim'},
+  {field:'region_display', headerName:'区域', width:110},
+  {field:'name', headerName:'调度名', width:300, cellClass:'mono dim'},
+];
+const RUNBOOK_COLS=[
+  {field:'name', headerName:'剧本', width:285, cellClass:'alias mono',
+     onCellClicked:p=>openRunbook(p.value), cellRenderer:p=>openableCell(p.value)},
+  {field:'dist', headerName:'分发', width:78, headerTooltip:'可分发给其它企业（通用、无环境耦合，已收入 runbooks/dist/）',
+     cellRenderer:p=>{ if(!p.value) return ''; const e=document.createElement('span');
+        e.className='dist-ic'; e.title='可分发：通用方法论，无本环境耦合';
+        e.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 010 18a14 14 0 010-18"/></svg>';
+        return e; }},
+  {field:'title', headerName:'标题', width:330},
+  {field:'date', headerName:'沉淀时间', width:120, cellClass:'mono dim'},
+  {field:'write_op', headerName:'写操作', width:95,
+     cellRenderer:p=>{const e=document.createElement('span');
+        e.textContent=p.value; e.className=p.value==='是'?'days-warn':'dim'; return e;}},
+  {field:'intent', headerName:'触发意图', width:560, cellClass:'dim'},
+];
+const OPSLOG_COLS=[
+  {field:'ts', headerName:'时间', width:155, cellClass:'mono',
+     valueFormatter:p=>(p.value||'').replace('T',' ')},
+  {field:'source', headerName:'来源', width:80,
+     cellClass:p=>p.value==='agent'?'cloud-aws':'cloud-tencent'},
+  {field:'action', headerName:'操作', width:120, cellClass:'mono'},
+  {field:'target', headerName:'目标', width:175, cellClass:'mono'},
+  {field:'cloud', headerName:'云', width:74,
+     // 日志里 cloud 可能为空 → '—'；非空走共用 CLOUD_LABEL（+aws），未知则原样显示
+     valueFormatter:p=>p.value?({aws:'AWS',...CLOUD_LABEL}[p.value]||p.value):'—',
+     cellClass:p=>p.value?'cloud-'+p.value:'dim'},
+  {field:'result', headerName:'结果', width:90, cellRenderer:p=>{
+     const e=document.createElement('span'); const ok=p.value==='ok';
+     e.className='pill '+(ok?'pill-running':'pill-stopped'); e.textContent=p.value; return e;}},
+  {field:'detail', headerName:'详情', width:560, cellClass:'mono dim', cellRenderer:p=>truncTip(p.value)},
+];
+const VIEWS={
+  instances:{cols:COLS, key:'instances'},
+  domains:  {cols:DOMAIN_COLS, key:'domains'},
+  databases:{cols:DB_COLS, key:'databases'},
+  storage:  {cols:ST_COLS, key:'storage'},
+  serverless:{cols:LAMBDA_COLS, key:'serverless'},
+  cdn:      {cols:CDN_COLS, key:'cdn'},
+  iam:      {cols:IAM_COLS, key:'iam'},
+  apikeys:  {cols:APIKEY_COLS, key:'apikeys'},
+  messaging:{cols:MSG_COLS, key:'messaging'},
+  billing:  {cols:BILLING_COLS, key:'billing'},
+  scheduled:{cols:SCHED_COLS, key:'scheduled'},
+  runbooks: {cols:RUNBOOK_COLS, key:'runbooks'},
+  ops_log:  {cols:OPSLOG_COLS, key:'ops_log'},
+  ops_config:{key:'ops_config', custom:true},   // 非 grid：只读「纳管范围」自定义面板
+};
+let view='instances';
+// 某视图当前列定义的签名（colId 有序拼接）；列状态按它存取，列定义一变旧状态自动失效
+const colSig = (vw)=> (((VIEWS[vw]||{}).cols)||[]).map(c=>c.colId||c.field).join(',');   // 自定义面板视图(ops_config)没有 cols
+let gridApi, DATA={instances:[],domains:[],databases:[],storage:[],serverless:[],cdn:[],iam:[],apikeys:[],messaging:[],billing:[],scheduled:[],runbooks:[],ops_log:[]};
+const mq = matchMedia('(prefers-color-scheme: dark)');
+function themeFor(){
+  const dark=mq.matches;
+  return themeQuartz.withPart(dark?colorSchemeDark:colorSchemeLight).withParams({
+    fontFamily:UIFONT, fontSize:'13px', headerFontSize:'12px', headerFontWeight:600, spacing:6,
+    accentColor: dark?'#4493f8':'#0969da',
+    borderColor: dark?'#2a3038':'#e2e6ea',
+    headerBackgroundColor: dark?'#1a2029':'#f6f8fa',
+    oddRowBackgroundColor: dark?'rgba(255,255,255,.018)':'rgba(0,0,0,.015)',
+    rowHoverColor: dark?'rgba(255,107,0,.24)':'rgba(255,107,0,.16)',
+    wrapperBorder:false, headerColumnResizeHandleColor: dark?'#3a424d':'#d0d7de',
+  });
+}
+
+const gridOptions = {
+  theme: themeFor(),
+  columnDefs: COLS,
+  rowData: [],
+  // suppressSizeToFit 默认全开：sizeColumnsToFit 只把剩余宽度给放行的那一根主列（见 fitFillColumn）
+  defaultColDef:{ sortable:true, resizable:true, filter:true, suppressSizeToFit:true },
+  rowHeight:34, headerHeight:38, tooltipShowDelay:300,
+  isExternalFilterPresent:()=> !!val('f-account') || (view==='instances' && !!(val('f-region')||val('f-state')))
+    || (view==='messaging' && !!val('f-kind')) || (view==='billing' && !!val('f-month')),
+  doesExternalFilterPass:(n)=>{const i=n.data;
+    const acct = view==='instances' ? i.profile : i.account;   // 实例用 profile，其余资源用 account
+    if(val('f-account') && acct!==val('f-account')) return false;
+    if(view==='instances'){
+      if(val('f-region') && i.region_display!==val('f-region')) return false;
+      if(val('f-state')  && i.state!==val('f-state'))           return false;
+    }
+    if(view==='messaging' && val('f-kind') && i.kind!==val('f-kind')) return false;
+    if(view==='billing' && val('f-month') && i.month!==val('f-month')) return false;
+    return true;},
+  getRowStyle:p=> p.node.rowPinned ? {fontWeight:'600'} : undefined,   // 合计行加粗
+  onModelUpdated:()=>{ if(!gridApi) return;
+    const tot=(DATA[VIEWS[view].key]||[]).length;
+    document.getElementById('count').textContent = `${gridApi.getDisplayedRowCount()} / ${tot}`;
+    updateBillingTotal(); },
+  onSortChanged:saveState, onColumnMoved:saveState, onColumnResized:saveState,
+};
+// 成本 tab：把「当前筛选后」所有行的金额**按币种分别**求和，作为 ag-grid 底部固定合计行；离开该 tab 则清空。
+// 跨币种绝不相加（USD/CNY 各自一列一个合计，无汇率折算）；某币种无数据则该列合计留空。
+// 用 key 去重避免 setGridOption 触发的 onModelUpdated 递归。
+let _billTotalKey='';
+function updateBillingTotal(){
+  if(!gridApi) return;
+  if(view!=='billing'){ if(_billTotalKey!==''){ _billTotalKey=''; gridApi.setGridOption('pinnedBottomRowData',[]); } return; }
+  let su=0,nu=0,sc=0,nc=0;
+  gridApi.forEachNodeAfterFilter(nd=>{ const d=nd.data; if(!d) return;
+     if(d.currency==='CNY'){ sc+=(d.amount||0); nc++; } else { su+=(d.amount||0); nu++; } });
+  const n=nu+nc;
+  const key=[nu,su.toFixed(2),nc,sc.toFixed(2)].join('|');
+  if(key===_billTotalKey) return;
+  _billTotalKey=key;
+  gridApi.setGridOption('pinnedBottomRowData', n?[{account:`合计（${n} 项）`,
+     amount_usd:nu?su:null, amount_cny:nc?sc:null, _total:true}]:[]);
+}
+gridApi = createGrid(document.getElementById('grid'), gridOptions);
+mq.addEventListener('change', ()=> gridApi.setGridOption('theme', themeFor()));
+// 窗口变宽/变窄后主列跟着重分配剩余宽度（防抖，避免拖窗口时每帧都重算列宽）
+let _fitT; addEventListener('resize', ()=>{ clearTimeout(_fitT); _fitT=setTimeout(fitFillColumn, 120); });
+
+function val(id){return document.getElementById(id).value;}
+function onFilter(){ gridApi.onFilterChanged(); saveState(); }
+function onQuick(){ gridApi.setGridOption('quickFilterText', val('f-q')); saveState(); }
+function exportCsv(){ gridApi.exportDataAsCsv({fileName:view+'.csv', allColumns:true}); }
+function switchView(v){ view=v; try{history.replaceState(null,'','#'+v);}catch(e){} applyView(); }
+// 日志条目本身不含 account（只有 target/cloud）。按 target 反查所属账号，让账号筛选对日志也生效。
+// 索引来源：实例(名/ID→profile)、其余资源(名→account)、域名。target 形如 "桶/对象" 时取桶名。
+function logAccountIndex(){
+  // 资源标识 → {account, cloud}。键含「cloud|名」与「名」两种（同名跨云靠 cloud 消歧）；
+  // 实例额外按 ssh_alias 建键，用 SSH 日志中的别名反查云与账号。
+  const ix={}; const add=(k,a,cloud)=>{ if(k&&!(k in ix)) ix[String(k)]={account:a||'', cloud:cloud||''}; };
+  const addRes=(cloud,name,a)=>{ add((cloud||'aws')+'|'+name, a, cloud); add(name, a, cloud); };
+  (DATA.instances||[]).forEach(i=>{
+    addRes(i.cloud,i.name,i.profile); addRes(i.cloud,i.id,i.profile);
+    add(i.ssh_alias, i.profile, i.cloud);          // SSH 别名 → 云+账号
+  });
+  ['storage','databases','serverless','iam','apikeys','messaging'].forEach(key=>
+    (DATA[key]||[]).forEach(x=> addRes(x.cloud,x.name,x.account)));
+  (DATA.domains||[]).forEach(x=> addRes(x.cloud,x.domain,x.account));
+  (DATA.cdn||[]).forEach(x=> addRes(x.cloud,x.domain,x.account));
+  return ix;
+}
+function enrichOpsLog(rows){
+  // account/cloud 缺失时按 target 反查清单补入（前端只读补显示，不改后端数据）。
+  // SSH 日志后端没记 cloud → 这里靠 ssh_alias 反查补上；account 同理。
+  const ix=logAccountIndex();
+  rows.forEach(r=>{ if(r.account && r.cloud) return;
+    const t=(r.target||'').trim(), c=r.cloud||'aws', head=t.split('/')[0];
+    const hit = ix[c+'|'+t] || ix[c+'|'+head] || ix[t] || ix[head];
+    if(hit){ if(!r.account) r.account=hit.account; if(!r.cloud) r.cloud=hit.cloud; }
+  });
+  return rows;
+}
+// 操作日志轻量自动刷新：只读 /ops-log.json（实时 .state/ops-log.jsonl），不触发全量 sync
+function refreshOpsLog(){
+  fetch('/ops-log.json',{cache:'no-store'}).then(r=>r.json()).then(rows=>{
+    DATA.ops_log = enrichOpsLog(rows);
+    const c=document.getElementById('cnt-ol'); if(c) c.textContent=rows.length;
+    renderOverview();   // 同步刷新概览「操作日志」卡片（数量 / 失败数）
+    if(view==='ops_log' && gridApi) gridApi.setGridOption('rowData', DATA.ops_log);
+  }).catch(()=>{});
+}
+setInterval(()=>{ if(view==='ops_log') refreshOpsLog(); }, 8000);   // 仅在日志 tab 时每 8s 刷
+// 「吃剩余宽度」的主列补满右侧空白。
+// 背景：这类列原本写的是 ag-grid 的 flex:1，但 flex 在本表里**从来没生效过**——初次渲染就塌到 minWidth
+// （成本 tab 的「服务」列 280px，表宽 1664px，右侧白白空出 470px），且此后无论换 tab、改窗口大小还是重设
+// columnDefs 都不再重算。localStorage 里存的列状态会让它更糟：用户拖动**任意**一列宽度时 ag-grid 会把
+// flex 清成 null 并把当时的宽度定死，存盘后自我延续，于是永远按「当年那个窗口宽度」复原。
+// 改用 sizeColumnsToFit + suppressSizeToFit 这套等价 idiom：defaultColDef 里全体禁止参与分配，只有声明了
+// flex 的主列放行，剩余宽度就全给到它。每次 applyView 末尾和窗口 resize 时各跑一次，故存档里那个陈旧宽度
+// 也会被就地纠正，无需清 localStorage。
+// 代价：那一根主列不再记住手工拖宽（每视图至多一列：成本=服务、IAM=角色/备注），其余定宽列照常记住。
+function fitFillColumn(){
+  const cols=(VIEWS[view]||{}).cols;
+  if(!cols) return;
+  const fill=new Set(cols.filter(c=>c.flex).map(c=>c.colId||c.field));
+  if(!fill.size) return;                                    // 无主列（如实例）→ 保持定宽+横向滚动，别挤扁
+  const vp=document.querySelector('#grid .ag-center-cols-viewport');
+  if(!vp || !vp.clientWidth) return;                        // grid 隐藏中（自定义面板 tab）
+  const fixed=gridApi.getColumnState()
+    .filter(c=>!fill.has(c.colId)).reduce((s,c)=>s+(c.width||0),0);
+  if(fixed>=vp.clientWidth) return;                         // 定宽列已占满 → 没有剩余可分配
+  gridApi.sizeColumnsToFit();
+}
+function applyView(){
+  applying=true;
+  const v = VIEWS[view];
+  for(const k in VIEWS) document.getElementById('tab-'+k).classList.toggle('active', k===view);
+  const custom = !!v.custom;
+  document.getElementById('grid').style.display = custom ? 'none' : '';
+  document.getElementById('bar').style.display = custom ? 'none' : '';
+  document.getElementById('ops-config-panel').style.display = custom ? 'flex' : 'none';
+  if(custom){ applying=false; if(view==='ops_config') renderOpsConfig(); return; }   // 自定义面板：跳过所有 grid 操作
+  document.getElementById('inst-filters').style.display = (view==='instances') ? 'flex' : 'none';
+  document.getElementById('msg-filters').style.display = (view==='messaging') ? 'flex' : 'none';
+  document.getElementById('billing-filters').style.display = (view==='billing') ? 'flex' : 'none';
+  gridApi.setGridOption('columnDefs', v.cols);
+  gridApi.setGridOption('rowData', DATA[v.key]||[]);
+  // 应用当前 tab 自己那份列状态（每个视图独立，互不干扰）
+  try{ const s=JSON.parse(localStorage.getItem(LS)||'{}');
+       // 列状态带「列定义签名」：签名对不上（版本升级新增/删除/重排了列）就丢弃旧状态——否则 applyOrder
+       // 会把新列排到 flex 填充列之后、挤出视口，看起来像"新列没出来"。用户自己拖的顺序签名不变、照常保留。
+       const saved=s.cols && s.cols[view];
+       if(saved && saved.sig===colSig(view) && Array.isArray(saved.state))
+         gridApi.applyColumnState({state:saved.state,applyOrder:true});
+     }catch(e){}
+  gridApi.setGridOption('quickFilterText', val('f-q'));
+  gridApi.onFilterChanged();
+  fitFillColumn();               // 主列补满右侧空白（须在列状态应用之后，见 fitFillColumn 注释）
+  applying=false;
+  if(view==='ops_log') refreshOpsLog();   // 进日志 tab 立即拉最新（轻量，不跑 sync）
+}
+
+// 纳管范围：只读，拉 /ops-config.json（配置）+ 结合 DATA（实际）做"意图 vs 实际"对照
+function renderOpsConfig(){
+  const panel=document.getElementById('ops-config-panel');
+  if(!panel) return;
+  fetch('/ops-config.json',{cache:'no-store'}).then(r=>r.json()).then(cfg=>{
+    const insts=DATA.instances||[];
+    const byProfile={};                       // profile -> {count, regions:{region_display:n}}
+    insts.forEach(i=>{const p=i.profile||''; const b=byProfile[p]||(byProfile[p]={count:0,regions:{}});
+      b.count++; const rd=i.region_display||i.region||'?'; b.regions[rd]=(b.regions[rd]||0)+1;});
+    // 每账号「非实例」资源计数（域名/存储/IAM/库/函数/消息）——纯存储或纯 IAM 的账号(如 GCP 仅看存储/IAM)不算错配
+    const resByAcct={};
+    const bump=(a)=>{ if(a) resByAcct[a]=(resByAcct[a]||0)+1; };
+    ['domains','storage','iam','apikeys','databases','serverless','cdn','messaging'].forEach(k=>
+      (DATA[k]||[]).forEach(x=> bump(x.account)));
+    const asList=v=>Array.isArray(v)?v:(v&&v.account?[v]:[]);   // 兼容多账号 list 与旧单对象
+    const rows=[];
+    (cfg.accounts||[]).forEach(a=>{
+      const scan = a.partition==='china'? cfg.scan_regions_china : cfg.scan_regions_global;
+      const hit = byProfile[a.profile]||{count:0,regions:{}};
+      rows.push({cloud:'aws',acct:a.profile,part:a.partition,scanN:(scan||[]).length,
+                 hit:Object.keys(hit.regions).join(', '),n:hit.count,res:resByAcct[a.profile]||0});
+    });
+    [['aliyun',cfg.aliyun],['tencent',cfg.tencent],['volcengine',cfg.volcengine],['gcp',cfg.gcp],['azure',cfg.azure],['oracle',cfg.oracle],['cloudflare',cfg.cloudflare],['supabase',cfg.supabase]].forEach(([name,list])=>{
+      asList(list).forEach(c=>{
+        const hit=byProfile[c.account]||{count:0,regions:{}};
+        rows.push({cloud:name,acct:c.account,part:'—',scanN:Object.keys(c.regions||{}).length,
+                   hit:Object.keys(hit.regions).join(', '),n:hit.count,res:resByAcct[c.account]||0});
+      });
+    });
+    // 实例命中列：有实例→列区域；无实例但有其它资源(存储/IAM/域名…)→标"无实例·N 项其它资源"(不是错配)；全空→告警
+    const hitCell=r=> r.n>0 ? r.hit
+      : (r.res>0 ? `<span class="dim">— 无实例 · ${r.res} 项其它资源</span>`
+                 : '<span class="oc-warn">— ⚠ 配置了但 0 资源</span>');
+    const covTable='<table class="oc-table"><thead><tr><th>云</th><th>账号</th><th>分区</th><th>配置区域</th><th>命中(有实例)</th><th>实例</th></tr></thead><tbody>'
+      + rows.map(r=>`<tr><td>${r.cloud}</td><td class="mono">${r.acct}</td><td>${r.part}</td><td>${r.scanN} 区</td>`
+        + `<td>${hitCell(r)}</td><td>${r.n}</td></tr>`).join('')
+      + '</tbody></table>';
+
+    const sa=(cfg.scheduler||{}).sched_accounts||{};
+    const schedLines=Object.keys(sa).map(p=>`AWS ${p} ✓`).join(' · ')||'—';
+    const dc=((cfg.scheduler||{}).dispatch_clouds||[]).map(t=>`${t[0]} ${t[1]} ✓`).join(' · ')||'—';
+    const prefixes=(cfg.alias_prefix||[]).map(x=>`${x.prefix}(${x.region})`).join(' · ')||'—';
+    const jumps=(cfg.jumps||[]).map(x=>`${x.alias} → ${x.instance}`).join(' · ')||'—';
+    const al=asList(cfg.aliyun).find(x=>x.ssh_user)||{}, tc=asList(cfg.tencent).find(x=>x.ssh_user)||{};
+    const sshUsers=`阿里 ${al.ssh_user||'—'}/${al.ssh_key||'—'}.pem · 腾讯 ${tc.ssh_user||'—'}/${tc.ssh_key||'—'}.pem`;
+    const d=(cfg.scheduler||{}).dispatch||{};
+    const lam=(d.lambda||'').split(':function:').pop();
+    const totalScan=(cfg.scan_regions_global||[]).length+(cfg.scan_regions_china||[]).length;
+    const hitRegions=new Set(insts.map(i=>i.region_display||i.region)).size;
+    const schedulable=Object.keys(sa).length+((cfg.scheduler||{}).dispatch_clouds||[]).length;
+    const _nonaws=[asList(cfg.aliyun),asList(cfg.tencent),asList(cfg.volcengine),asList(cfg.gcp),asList(cfg.azure),asList(cfg.oracle),asList(cfg.cloudflare),asList(cfg.supabase)];   // 非 AWS 各家账号
+    const totalAccounts=(cfg.accounts||[]).length+_nonaws.reduce((s,l)=>s+l.length,0);   // 纳管账号总数（含非 AWS 多账号/项目）
+    const cloudCount=[(cfg.accounts||[]).length, ..._nonaws.map(l=>l.length)].filter(n=>n>0).length;   // 实际配了账号的云数
+
+    panel.innerHTML=`
+      <div class="oc-chips">
+        <div class="oc-chip"><b>${totalAccounts}</b>纳管账号</div>
+        <div class="oc-chip"><b>${cloudCount}</b>云</div>
+        <div class="oc-chip"><b>${totalScan}</b>配置区域</div>
+        <div class="oc-chip"><b>${hitRegions}</b>有实例区</div>
+        <div class="oc-chip"><b>${schedulable}</b>可调度</div>
+      </div>
+      <div class="oc-sec"><div class="oc-h">账号 × 区域覆盖（配置 vs 实际）</div>${covTable}</div>
+      <div class="oc-sec"><div class="oc-h">计划任务支持</div><div class="oc-kv">
+        <div class="oc-card"><div class="k">AWS 可调度账号</div><div class="v">${schedLines}</div></div>
+        <div class="oc-card"><div class="k">派发云（腾讯/阿里）</div><div class="v">${dc}</div></div></div></div>
+      <div class="oc-sec"><div class="oc-h">SSH 接入</div><div class="oc-kv">
+        <div class="oc-card"><div class="k">别名前缀</div><div class="v">${prefixes}</div></div>
+        <div class="oc-card"><div class="k">跳板机</div><div class="v">${jumps}</div></div>
+        <div class="oc-card"><div class="k">登录</div><div class="v">${sshUsers}</div></div></div></div>
+      <div class="oc-sec"><div class="oc-h">派发中枢（跨云重启）</div><div class="oc-kv">
+        <div class="oc-card"><div class="k">Lambda</div><div class="v">${lam} @ ${d.account||'?'} / ${d.region||'?'}</div></div></div></div>
+      <div class="oc-foot">源 ops-config.toml · 只读 · 非密 · 改配置编辑该文件后 <code>ops sync</code></div>`;
+    const c=document.getElementById('cnt-oc'); if(c) c.textContent=totalAccounts;
+  }).catch(()=>{ panel.innerHTML='<div style="padding:20px;color:var(--red)">加载配置失败</div>'; });
+}
+
+function fill(sel, vals, order, tail){
+  const el=document.getElementById(sel);
+  let uniq=[...new Set(vals)].filter(Boolean);
+  const _tail=new Set(tail||[]);
+  const _tailArr=tail||[];
+  const cmp=(a,b)=>{
+    const at=_tail.has(a),bt=_tail.has(b);
+    if(at!==bt) return at?1:-1;
+    if(at&&bt) return _tailArr.indexOf(a)-_tailArr.indexOf(b);  // tail 按指定顺序
+    if(order){const ia=order.indexOf(a),ib=order.indexOf(b);return(ia<0?1e9:ia)-(ib<0?1e9:ib);}
+    return a<b?-1:a>b?1:0;
+  };
+  uniq.sort(cmp);
+  el.innerHTML='<option value="">'+el.options[0].text+'</option>'+
+    uniq.map(v=>`<option>${v}</option>`).join('');
+}
+let applying=false;  // 程序切换列/恢复状态期间为 true，抑制回存，避免切 tab 时把新列状态写脏
+function saveState(){
+  if(applying) return;
+  let prev={}; try{ prev=JSON.parse(localStorage.getItem(LS)||'{}'); }catch(e){}
+  // 每个 tab 各存一份列状态：cols 是 {视图名: 列状态}，按视图名隔离，同名 colId 也不会跨 tab 污染
+  const cols = (prev.cols && typeof prev.cols==='object' && !Array.isArray(prev.cols)) ? prev.cols : {};
+  cols[view] = {sig:colSig(view), state:gridApi.getColumnState()};   // 带签名，见 applyView 的恢复逻辑
+  try{ localStorage.setItem(LS, JSON.stringify({
+    cols,
+    f:{a:val('f-account'),r:val('f-region'),s:val('f-state'),k:val('f-kind'),m:val('f-month'),q:val('f-q')}
+  })); }catch(e){}
+}
+function restoreState(){
+  let s={}; try{ s=JSON.parse(localStorage.getItem(LS))||{}; }catch(e){}
+  if(s.f){ const set=(id,v)=>{const el=document.getElementById(id);if(v&&[...el.options].some(o=>o.value===v))el.value=v;};
+    set('f-account',s.f.a); set('f-region',s.f.r); set('f-state',s.f.s); set('f-kind',s.f.k); set('f-month',s.f.m);
+    if(s.f.q){document.getElementById('f-q').value=s.f.q;} }
+  // 列状态由 applyView() 按当前视图统一应用，此处不再重复应用，避免首屏 applyColumnState 跑两次
+  gridApi.setGridOption('quickFilterText', val('f-q'));
+  gridApi.onFilterChanged();
+}
+
+// 概览区：从 DATA 聚合出汇总卡片 + 「需要关注」风险项（数据全现成，纯前端算，零依赖）
+function renderOverview(){
+  const inst=DATA.instances||[], dom=DATA.domains||[], iam=DATA.iam||[];
+  const db=(DATA.databases||[]).length, st=(DATA.storage||[]).length, fn=(DATA.serverless||[]).length, cdn=(DATA.cdn||[]).length;
+  const run = inst.filter(i=>['running','available'].includes(i.state)).length;
+  const stop = inst.length - run;
+  const byCloud=k=>inst.filter(i=>(i.cloud||'aws')===k).length;
+  const _clDefs=[['AWS','aws'],['阿里','aliyun'],['腾讯','tencent'],['火山','volcengine'],['Google','gcp'],['Azure','azure'],['Oracle','oracle'],['Cloudflare','cloudflare'],['Supabase','supabase'],['Sangfor HCI','sangfor'],['VMware ESX','vmware'],['本地','local'],['Synology NAS','synology']].filter(([_,k])=>byCloud(k)>0);
+  const cl=_clDefs.map(([n,k])=>`<span class="cloud-${k}">${n}</span> ${byCloud(k)}`).join(' · ');
+  const clPlain=_clDefs.map(([n,k])=>n+' '+byCloud(k)).join(' · ');
+  // 已放弃的域名不算进「最近到期 / 临期」统计——否则一个 -42 天的弃养域名会把概览
+  // 长期钉成红色，把真正漏续的那条淹没（见 ops-config.toml 的 [abandoned_domains]）
+  const days = dom.filter(d=>!d.abandoned).map(d=>d.days_left).filter(d=>d!=null);
+  const nearest = days.length ? Math.min(...days) : null;
+  const domSoon = days.filter(d=>d<=30).length, domWarn = days.filter(d=>d>30&&d<=60).length;
+  const keyOld  = iam.filter(u=>u.oldest_key_days>365).length;
+  const keyWarn = iam.filter(u=>u.oldest_key_days>180 && u.oldest_key_days<=365).length;
+  const ak=(DATA.apikeys||[]); const akOpen=ak.filter(k=>k.unrestricted).length;   // 无限制 AI 密钥=风险
+  const msg=(DATA.messaging||[]); const mc=k=>msg.filter(x=>x.kind===k).length;
+  const sched=(DATA.scheduled||[]); const schOne=sched.filter(s=>s.kind==='一次性').length;
+  const rb=(DATA.runbooks||[]); const rbDist=rb.filter(r=>r.dist).length;
+  const ol=(DATA.ops_log||[]); const olFail=ol.filter(e=>e.result!=='ok').length;
+  // 成本：当月至今合计 + 上月全月参考（当月是 partial，不算环比%以免误导）
+  const bill=(DATA.billing||[]);
+  const curM = bill.reduce((m,b)=> (b.month>m?b.month:m), '');
+  const prevM = (ym=>{ if(!ym) return ''; let [y,m]=ym.split('-').map(Number); if(--m<1){m=12;y--;} return `${y}-${String(m).padStart(2,'0')}`; })(curM);
+  // 按币种分开统计，不折算：主数字给 USD（全球分区），CNY（aws-cn）走 ov-sub / meta 行
+  const sumM = (ym,cur) => bill.filter(b=>b.month===ym && (b.currency==='CNY')===(cur==='CNY'))
+                              .reduce((s,b)=>s+(b.amount||0),0);
+  const curCost=sumM(curM,'USD'), prevCost=sumM(prevM,'USD');
+  const curCny =sumM(curM,'CNY'), prevCny =sumM(prevM,'CNY');
+  const m0 = (v,cur) => CUR_SYM[cur]+Math.round(v).toLocaleString('en-US');
+  const usd0 = v => m0(v,'USD'), cny0 = v => m0(v,'CNY');
+  const prevMeta = bill.length&&prevM
+    ? '上月 '+[curCost||!curCny?usd0(prevCost):null, curCny?cny0(prevCny):null].filter(Boolean).join(' · ')
+    : '—';
+
+  // 卡片顺序与下方 tab 一致：实例 → 域名 → 数据库 → 存储 → 函数 → CDN → IAM → AI 密钥 → 消息 → 成本 → …
+  const cards = `
+    <div class="ov-card ov-wide ov-inst" onclick="switchView('instances')">
+      <div class="ov-k">实例</div>
+      <div class="ov-v">${inst.length}<span class="ov-sub"><span><i class="dot-g"></i>${run}</span>${stop?`<span><i class="dot-r"></i>${stop}</span>`:''}</span></div>
+      <div class="ov-meta" id="inst-cl-meta">${cl||'—'}</div>
+    </div>
+    <div class="ov-card" onclick="switchView('domains')">
+      <div class="ov-k">域名</div>
+      <div class="ov-v">${dom.length}</div>
+      <div class="ov-meta${nearest!=null&&nearest<=60?' warn':''}">${nearest!=null?('最近到期 '+nearest+' 天'):'—'}</div>
+    </div>
+    <div class="ov-card" onclick="switchView('databases')">
+      <div class="ov-k">数据库</div>
+      <div class="ov-v">${db}</div>
+    </div>
+    <div class="ov-card" onclick="switchView('storage')">
+      <div class="ov-k">对象存储</div>
+      <div class="ov-v">${st}</div>
+    </div>
+    <div class="ov-card" onclick="switchView('serverless')">
+      <div class="ov-k">函数</div>
+      <div class="ov-v">${fn}</div>
+    </div>
+    <div class="ov-card" onclick="switchView('cdn')">
+      <div class="ov-k">CDN</div>
+      <div class="ov-v">${cdn}</div>
+    </div>
+    <div class="ov-card" onclick="switchView('iam')">
+      <div class="ov-k">IAM 用户</div>
+      <div class="ov-v">${iam.length}</div>
+      <div class="ov-meta${keyOld?' warn':''}">${keyOld?(keyOld+' 个密钥 >1 年'):'密钥健康'}</div>
+    </div>
+    <div class="ov-card" onclick="switchView('apikeys')">
+      <div class="ov-k">AI 密钥</div>
+      <div class="ov-v">${ak.length}</div>
+      <div class="ov-meta${akOpen?' warn':''}">${ak.length?(akOpen?(akOpen+' 个无限制'):'均已限定 API'):'—'}</div>
+    </div>
+    <div class="ov-card ov-wide ov-msg" onclick="switchView('messaging')">
+      <div class="ov-k">消息/事件</div>
+      <div class="ov-v">${msg.length}</div>
+      <div class="ov-meta">${msg.length?`SQS ${mc('SQS')} · SNS ${mc('SNS')} · SES ${mc('SES')} · EB ${mc('EventBridge')}`:'—'}</div>
+    </div>
+    <div class="ov-card ov-bill${curCny?' ov-wide':''}" onclick="switchView('billing')">
+      <div class="ov-k">本月成本</div>
+      <div class="ov-v">${bill.length?usd0(curCost):'—'}${curCny?`<span class="ov-sub"><span>${cny0(curCny)}</span></span>`:''}</div>
+      <div class="ov-meta">${prevMeta}</div>
+    </div>
+    <div class="ov-card" onclick="switchView('scheduled')">
+      <div class="ov-k">计划任务</div>
+      <div class="ov-v">${sched.length}</div>
+      <div class="ov-meta">${sched.length?(schOne+' 一次性 · '+(sched.length-schOne)+' 循环'):'—'}</div>
+    </div>
+    <div class="ov-card" onclick="switchView('runbooks')">
+      <div class="ov-k">剧本</div>
+      <div class="ov-v">${rb.length}</div>
+      <div class="ov-meta">${rbDist?(rbDist+' 个可分发'):'—'}</div>
+    </div>
+    <div class="ov-card" onclick="switchView('ops_log')">
+      <div class="ov-k">操作日志</div>
+      <div class="ov-v">${ol.length}</div>
+      <div class="ov-meta${olFail?' warn':''}">${ol.length?(olFail?(olFail+' 条失败'):'最近写操作'):'—'}</div>
+    </div>`;
+
+  const chips=[];
+  const incomplete=(DATA.collection_status||[]).filter(s=>s.status!=='ok').length;
+  if(incomplete) chips.push(`<button class="att-chip att-warn" onclick="document.getElementById('collection-health').open=true">采集不完整 ${incomplete}<span class="q">查看数据时间</span></button>`);
+  if(domSoon)      chips.push(`<button class="att-chip att-red" onclick="switchView('domains')">域名临期 ${domSoon}<span class="q">≤30天</span></button>`);
+  else if(domWarn) chips.push(`<button class="att-chip att-warn" onclick="switchView('domains')">域名将到期 ${domWarn}<span class="q">≤60天</span></button>`);
+  if(keyOld)       chips.push(`<button class="att-chip att-red" onclick="switchView('iam')">老密钥 ${keyOld}<span class="q">>1年</span></button>`);
+  else if(keyWarn) chips.push(`<button class="att-chip att-warn" onclick="switchView('iam')">密钥偏旧 ${keyWarn}<span class="q">>180天</span></button>`);
+  if(akOpen)       chips.push(`<button class="att-chip att-red" onclick="switchView('apikeys')">无限制 AI 密钥 ${akOpen}<span class="q">会被封</span></button>`);
+  if(stop)         chips.push(`<button class="att-chip att-warn" onclick="switchView('instances')">非运行实例 ${stop}</button>`);
+  const att = chips.length
+    ? `<span class="att-label">需要关注</span>${chips.join('')}`
+    : `<span class="att-label">需要关注</span><span class="att-chip att-ok">暂无风险项</span>`;
+
+  document.getElementById('overview').innerHTML =
+    `<div class="ov-cards">${cards}</div><div class="ov-att">${att}</div>`;
+  // 云分布省略号：截断时 hover 显示完整单行浮层
+  const _cm = document.getElementById('inst-cl-meta');
+  if(_cm && clPlain){
+    _cm.addEventListener('mouseenter', ()=>{
+      if(_cm.scrollWidth <= _cm.clientWidth + 1) return;
+      const tip=_ensureCellTip();
+      tip.innerHTML=''; const tx=document.createElement('span'); tx.textContent=clPlain; tip.appendChild(tx);
+      tip.style.cssText='display:block;white-space:nowrap';
+      const r=_cm.getBoundingClientRect();
+      tip.style.left=Math.min(r.left, innerWidth-tip.offsetWidth-12)+'px';
+      tip.style.top=(r.bottom+6)+'px';
+    });
+    _cm.addEventListener('mouseleave', ()=>{ if(_cellTip) _cellTip.style.display='none'; });
+  }
+}
+
+function renderCollectionHealth(data){
+  const panel=document.getElementById('collection-health');
+  const summary=document.getElementById('collection-summary');
+  const target=document.getElementById('collection-table');
+  const rows=[...(data.collection_status||[])];
+  const bad=rows.filter(s=>s.status==='error').length;
+  const partial=rows.filter(s=>s.status==='partial').length;
+  panel.dataset.warning=String(bad+partial>0);
+  summary.textContent=rows.length
+    ? `采集状态 · ${rows.length} 个范围${bad?` · ${bad} 个失败，已有数据保留`:''}${partial?` · ${partial} 个补充字段不全`:''} · 展开查看各范围时间`
+    : '采集状态尚未记录 · 下次云资源同步后显示';
+  target.replaceChildren();
+  if(!rows.length) return;
+  const rank={error:0,partial:1,ok:2};
+  rows.sort((a,b)=>(rank[a.status]??3)-(rank[b.status]??3));
+  const table=document.createElement('table');
+  const head=table.createTHead().insertRow();
+  for(const text of ['云 / 账号','资源 / 区域','状态','条数','最近尝试','上次完整成功']){
+    const cell=document.createElement('th');cell.textContent=text;head.appendChild(cell);
+  }
+  const body=table.createTBody();
+  const time=value=>value?new Date(value).toLocaleString():'尚无记录';
+  for(const s of rows){
+    const row=body.insertRow();row.dataset.status=s.status;
+    const state=s.status==='ok'?'成功':s.status==='partial'?'列表已更新，补充字段不全':s.preserved?'采集失败，沿用旧数据':'采集失败，暂无可用数据';
+    for(const value of [`${s.cloud} / ${s.account}`,`${s.kind}${s.region?' / '+s.region:''}`,state,
+                        s.row_count??0,time(s.attempted_at),time(s.last_success_at)]){
+      row.insertCell().textContent=String(value);
+    }
+  }
+  target.appendChild(table);
+}
+
+function load(){
+  return fetch('data.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{
+    DATA=d;
+    // Google 托管的系统服务代理(system:true)是噪音——看板前端默认不显示（data.json/inventory 仍保留全量）
+    DATA.iam = (DATA.iam||[]).filter(r=>!r.system);
+    document.getElementById('ts').textContent = d.generated_at? ('看板生成于 '+d.generated_at.replace('T',' ')) : (d.error||'');
+    renderCollectionHealth(d);
+    fill('f-account', [...d.instances.map(i=>i.profile),
+      ...['domains','databases','storage','serverless','cdn','iam','apikeys','messaging','billing','scheduled'].flatMap(k=>(d[k]||[]).map(x=>x.account))],
+      undefined, ['Sangfor HCI','VMware ESX','本地','Synology NAS']);
+    fill('f-region',  d.instances.map(i=>i.region_display), REGION_ORDER);
+    fill('f-state',   d.instances.map(i=>i.state));
+    fill('f-kind',    (d.messaging||[]).map(m=>m.kind), ['SQS','SNS','SES','EventBridge']);
+    fill('f-month',   (d.billing||[]).map(b=>b.month),
+      [...new Set((d.billing||[]).map(b=>b.month))].filter(Boolean).sort().reverse());   // 月份倒序（新→旧）
+    document.getElementById('cnt-i').textContent = (d.instances||[]).length;
+    document.getElementById('cnt-d').textContent = (d.domains||[]).length;
+    document.getElementById('cnt-db').textContent = (d.databases||[]).length;
+    document.getElementById('cnt-st').textContent = (d.storage||[]).length;
+    document.getElementById('cnt-fn').textContent = (d.serverless||[]).length;
+    document.getElementById('cnt-cdn').textContent = (d.cdn||[]).length;
+    document.getElementById('cnt-iam').textContent = (DATA.iam||[]).length;   // 过滤系统SA后的可见数
+    document.getElementById('cnt-ak').textContent = (d.apikeys||[]).length;
+    document.getElementById('cnt-msg').textContent = (d.messaging||[]).length;
+    document.getElementById('cnt-bill').textContent = (d.billing||[]).length;
+    document.getElementById('cnt-sch').textContent = (d.scheduled||[]).length;
+    document.getElementById('cnt-rb').textContent = (d.runbooks||[]).length;
+    document.getElementById('cnt-ol').textContent = (d.ops_log||[]).length;
+    renderOverview();
+    applying=true; restoreState();   // 恢复期间不回存
+    applyView();                     // 按当前视图设置列与数据（末尾会复位 applying）
+  });
+}
+
+function copyCell(v){
+  navigator.clipboard.writeText(v).then(()=>toast('已复制  '+v)).catch(()=>toast(v));
+}
+let tT;
+function toast(msg){const el=document.getElementById('toast');
+  el.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M20 6L9 17l-5-5"/></svg>'+msg;
+  el.classList.add('show'); clearTimeout(tT); tT=setTimeout(()=>el.classList.remove('show'),1800);}
+
+let _syncT;
+function refresh(){
+  const b=document.getElementById('refresh');
+  const t0=Date.now();
+  const tick=()=>{ const s=Math.round((Date.now()-t0)/1000);
+    b.innerHTML=`<span class="spin"></span>同步中 ${s}s…`; };
+  b.disabled=true; tick(); clearInterval(_syncT); _syncT=setInterval(tick,1000);
+  toast('开始全量同步，约需 1–2 分钟…');
+  fetch('/api/refresh',{method:'POST'}).then(r=>r.json()).then(res=>
+    load().then(()=>{ const s=Math.round((Date.now()-t0)/1000);
+      toast(res.ok?`${(DATA.collection_status||[]).some(x=>x.status!=='ok')?'同步结束，部分数据未完整更新':'同步完成'} · 用时 ${s}s`:'同步出错，见控制台'); if(!res.ok)console.error(res.stderr||res.report); })
+  ).catch(e=>toast('刷新失败：'+e)).finally(()=>{
+    clearInterval(_syncT);
+    b.disabled=false; b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7M21 3v5h-5"/></svg>刷新'; });
+}
+
+// 当前 tab 的中文名（取 tab 按钮文本，去掉计数徽标）
+function tabName(){ const t=document.getElementById('tab-'+view); return t? (t.firstChild.textContent||view).trim() : view; }
+// 包裹一个轻量刷新 Promise，给图标加转圈 + 完成提示（用于 ops_log 这类已有轻量通道的 tab）
+function spinTab(p, label){
+  const btn=document.getElementById('tab-refresh'); btn.disabled=true; btn.classList.add('spinning');
+  return Promise.resolve(p).then(()=>toast('已刷新「'+label+'」')).catch(()=>toast('刷新失败'))
+    .finally(()=>{ btn.disabled=false; btn.classList.remove('spinning'); });
+}
+// 只刷当前 tab：云类资源走 ops sync --kind=<键>（不全量），ops_log 走已有的轻量通道
+function refreshTab(){
+  if(view==='ops_log'){ return spinTab(refreshOpsLog(), '操作日志'); }   // 已有 /ops-log.json 轻量刷新，不打 sync
+  const kind = VIEWS[view] && VIEWS[view].key;
+  if(!kind) return;
+  const btn=document.getElementById('tab-refresh'); btn.disabled=true; btn.classList.add('spinning');
+  const t0=Date.now();
+  fetch('/api/refresh?kind='+encodeURIComponent(kind),{method:'POST'}).then(r=>r.json()).then(res=>{
+    if(!res.ok) throw new Error(res.stderr||res.report||'sync 失败');
+    // data.json 已被后端 patch（仅该类变化，其余键不动），load() 重新拉一份即可整体一致
+    return load().then(()=>{
+      const incomplete=(DATA.collection_status||[]).some(x=>x.kind===kind && x.status!=='ok');
+      toast(`${incomplete?'部分数据未完整更新':'已刷新'}「${tabName()}」· 用时 ${Math.round((Date.now()-t0)/1000)}s`);
+    });
+  }).catch(e=>{ toast('刷新失败：'+(e.message||e)); console.error(e); })
+    .finally(()=>{ btn.disabled=false; btn.classList.remove('spinning'); });
+}
+
+document.addEventListener('keydown', e=>{
+  const q=document.getElementById('f-q');
+  if(e.key==='/' && document.activeElement.tagName!=='INPUT' && document.activeElement.tagName!=='SELECT'){
+    e.preventDefault(); q.focus(); }
+  else if(e.key==='Escape' && document.activeElement===q){ q.value=''; onQuick(); q.blur(); }
+});
+
+{ const h=location.hash.slice(1); if(VIEWS[h]) view=h; }
+// 标题副标注 noc **支持**的云（来自后端 Provider 注册表，加云自动反映、不漂移）。
+// 每个云名上品牌色（复用 .cloud-<id> 配色，与表格「云」列一致），· 分隔、括号保持淡色。
+fetch('/api/meta').then(r=>r.json()).then(m=>{
+  const el=document.getElementById('supported-clouds'), cs=(m||{}).supported_clouds||[];
+  if(!el || !cs.length) return;
+  el.innerHTML=' 支持 '+cs.map(c=>`<span class="cloud-${c.cloud}">${c.display}</span>`).join(' · ');
+}).catch(()=>{});
+load();
+</script>
+</body>
+</html>

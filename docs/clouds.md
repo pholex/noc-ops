@@ -1,0 +1,85 @@
+# 各云支持细节
+
+README 里的表格说的是「有没有」，这里说「具体能看到什么」。看板标签页：机器 · 域名 · 数据库 · 存储 · 函数 · CDN · 账号权限（IAM）· AI 密钥 · 消息/事件 · 成本 · 计划任务 · 剧本 · 操作日志 · 纳管范围。
+
+| 云 | 机器 | 域名 | 数据库 | 存储 | 函数 | CDN | IAM | AI 密钥 | 消息·事件 | 成本 | 额度 | 重启 |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| AWS | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 阿里云 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
+| 腾讯云 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
+| 火山引擎 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
+| Google Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ | | | ✓ | ✓ |
+| Azure | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
+| Oracle Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | | ✓ | | ✓ |
+| Cloudflare | | ✓ 只读 | | ✓ | ✓ | ✓ | | | | | | |
+| Supabase | | | ✓ | ✓ | ✓ | | | | | | | 暂停/恢复 |
+| 内网虚拟化平台：VMware / 深信服 HCI | ✓ | | | | | | | | | | | ✓ |
+| 内网其它主机：群晖、任何能 SSH 的物理机或虚机 | ✓ | | | | | | | | | | | |
+
+## 机房里的机器
+
+- vCenter / 深信服有管控接口，自动扫出虚机并可重启。深信服这版接口不认重启，命令会如实告诉你改走哪条路，只能查状态。
+- 其它机器不分物理还是虚拟，在工作区 `local-servers.toml` 登记一行即可，`ops sync --local` 探 SSH 端口判断在线。
+- 人不在内网时，Tailscale 组网上的机器用 `ops sync --tailscale` 刷。
+- 机房机器不参与 `ops sync` 全量扫描，连不上不会被误判成「已删除」。
+
+## 各云的补充说明
+
+- **Cloudflare**：每个 zone 带状态、DNS 记录数与代理数、SSL 模式、套餐、NS；在 Cloudflare Registrar 注册的域名还有到期日。R2 桶进存储、Workers 脚本进函数、开了代理记录的 zone 进 CDN。只读，不做任何写操作。
+- **Supabase**：每个项目带算力档位（vCPU / 内存）、库实际占用、PITR 与最近备份、网络访问限制、自定义域名。Storage 桶进存储（公开桶标 ⚠）、Edge Functions 进函数。唯一的写操作是 `ops db pause|resume` 暂停 / 恢复项目，可逆，先回显再确认。
+- **火山引擎 / 腾讯云的对象存储**：TOS 桶和 COS 桶不在各自 CLI 里，分别另装官方 `tosutil`（`tosutil config -interactive`）和 `coscli`（`coscli config init`）配好即可纳管。
+- **Azure 成本**：MCA 订阅的成本只在计费档案层级有数据，驱动直接查档案层级，覆盖该档案下的全部订阅。
+- **AI 密钥**：只盘元数据（绑定的 API、服务账号、创建时间），永远不取密钥串。
+- **额度**：指信用余额、免费额度到期、超额保护，写在 `inventory.md` 的「云账务 / 额度」一节，不单独开标签页。
+- **定时重启**（看板「计划任务」）：用一个 AWS 账号里的 EventBridge + Lambda 做调度器，可以派发到其它云的实例。
+
+## 命令全集
+
+日常只用 `ops init` / `ops sync` / `ops sync --local` / `ops noc`。其余见 `ops help`：
+
+| 命令 | 作用 |
+|---|---|
+| `ops sync --kind=<类>` | 只刷一类资源（instances / domains / databases / storage / serverless / cdn / iam / apikeys / messaging / billing / credits） |
+| `ops sync --account=<账号>` | 只刷一个云账号，可与 `--kind` 组合 |
+| `ops sync --tailscale` | 只刷 Tailscale 组网上的机器 |
+| `ops sync --probe=<实例>` | 只探一台机器的 SSH 登录用户名并回写配置 |
+| `ops reboot <名字或 ID>` | 重启；`--status` 只查状态，`--dry-run` 只打印将执行的命令 |
+| `ops db status\|pause\|resume <名字或 ref>` | 托管数据库项目查状态 / 暂停 / 恢复（目前仅 Supabase） |
+| `ops netprobe` | 探测本机出口链路，纯只读 |
+| `ops doctor [--fix]` | 体检；`--fix` 自动修可修项 |
+| `ops setup [--workspace DIR] [--with-mcp]` | 装 / 刷新 skill；指定工作区；无 shell 的 GUI 客户端（Claude Desktop）接 MCP |
+| `ops noc status \| stop \| restart` | 看板管理；`-f --port N` 前台换端口 |
+| `ops log <action> [target]` | 手工记一条操作日志 |
+| `ops --version` | 版本 |
+
+## 安全规则
+
+| 操作类型 | 行为 |
+|---|---|
+| 只读（describe / list / get、状态查询） | 自动执行 |
+| 实例重启 | 直接执行，自动记审计日志 |
+| 其它写操作（启停 / 暂停恢复 / 销毁 / 改配置、远程改动、删资源） | 先回显计划，等你确认才做 |
+
+拿不准的一律按写操作对待。所有写操作记入 `<工作区>/.state/ops-log.jsonl`，看板「操作日志」页可看。凭证只住在各云 CLI 自己的配置和系统 Keychain 里，`ops` 不保存、不上传。
+
+## 工作区
+
+你的数据全部在工作区，默认 `~/.noc`，用 `NOC_HOME` 或 `ops setup --workspace` 改：
+
+```
+<workspace>/
+├── ops-config.toml   # 你的账号、区域、SSH key 约定（ops init 生成）
+├── local-servers.toml# 机房里手工登记的机器
+├── inventory.md      # 人读清单，含云账务 / 额度一节
+├── data.json         # 机读数据，看板与 skill 读它
+├── runbooks/*.md     # 你沉淀的运维剧本
+└── .state/           # 运行时状态：SSH 用户缓存、快照、操作日志、看板日志
+```
+
+升级 `noc-ops` 不碰工作区。秘密（API token、密码）不要写进 `ops-config.toml`，放系统 Keychain 或环境变量。
+
+## 沉淀 runbook
+
+1. 在 agent 客户端里把一件运维做完。
+2. 让它「存成 runbook」，它会按 `runbooks/_TEMPLATE.md` 写一份。
+3. 下次同类需求，agent 会先找到这份剧本照着执行。看板「剧本」页列出全部剧本。

@@ -1,0 +1,143 @@
+# ops 部署配置（单一声明式来源）——非密、可 git 跟踪、可移植。
+#
+# 安全边界：这里只放**非密**的部署专属配置——账号 ID / 区域 / SSH 别名前缀 /
+# 跳板机 / 角色 ARN / Lambda ARN / 云 profile 名 / ssh 用户名 / 私钥**文件名**。
+# **绝不**放：AWS access key、私钥内容、密码、任何 secret。
+#
+# 这是打包默认（=出厂占位模板）。`ops setup` / 首启会把它 seed 到 <workspace>/ops-config.toml，
+# 之后**编辑工作区那一份**填上你自己的账号/区域即可；本文件只是缺省回退。
+# 下方用 <尖括号> 标的都是占位符，请替换；用不到的云整段删掉即可。
+
+# ===== AWS =====
+[aws]
+# 仅这些 global 账号会扫 route53domains（域名）。删掉或留空表示不扫。
+route53_profiles = ["<aws-global-account-id>"]
+# 各 partition 下要扫的常用区域（按需增删）
+scan_regions_global = ["us-east-1", "us-west-2", "ap-northeast-1"]
+scan_regions_china = ["cn-northwest-1"]
+
+# 每个账号一段；profile = 你本机 `aws configure` 里的 profile 名（这里用账号 ID 当 profile 名也可）
+[[aws.accounts]]
+profile = "<aws-account-id>"
+partition = "global"          # china | global —— 决定扫哪组区域
+# [[aws.accounts]]
+# profile = "<aws-china-account-id>"
+# partition = "china"
+
+[aws.alias_prefix]           # "<profile>/<region>" = SSH 别名前缀（未列出的按区域昵称派生）
+# "<aws-account-id>/us-west-2" = "ore"
+
+[aws.jumps]                  # "<profile>/<region>" = [跳板别名, 跳板实例名]（仅无公网内网实例需要）
+# "<aws-china-account-id>/cn-northwest-1" = ["<jump-alias>", "<jump-instance-name>"]
+
+# ===== 阿里云（多账号，不用就整段删）=====
+# 每个账号一段 [[aliyun.accounts]]。只有域名、没有服务器的账号省略 regions/ssh_* 即可。
+# [[aliyun.accounts]]
+# profile = "<aliyun-cli-profile>"
+# account = "<aliyun-account-id>"
+# ssh_user = "root"
+# ssh_key = "<keyfile-name>"   # 私钥 ~/.ssh/<account>/<keyfile-name>.pem（文件名，非密钥内容）
+# [aliyun.accounts.regions]
+# "cn-hangzhou" = ["Hangzhou", "🇨🇳"]
+
+# ===== Google Cloud（多项目，只读展示 Compute/Storage/IAM，不用就整段删）=====
+# account=项目 id；认证沿用本机 gcloud（gcloud auth login / ADC），noc 不存密钥。
+# [[gcp.accounts]]
+# project = "<gcp-project-id>"
+# configuration = "default"   # 可选：gcloud 命名配置（多登录时用）
+
+# ===== Microsoft Azure（多订阅，只读展示 VM/存储/DNS/数据库/Function，VM 可重启，不用就整段删）=====
+# account=订阅 id；认证沿用本机 az（az login / service principal），noc 不存密钥。
+# [[azure.accounts]]
+# subscription = "<azure-subscription-id>"
+
+# ===== Cloudflare（DNS zone 纳入「域名」tab，只读，不用就整段删）=====
+# token 只读权限：Zone:Read、DNS:Read、Zone Settings:Read；要显示注册到期日再加 Account → Registrar:Read；
+# R2 桶要 Account → Workers R2 Storage:Read，Workers 脚本要 Account → Workers Scripts:Read（缺哪项只少那一类/列）。
+# token 是密钥，不放配置——存 Keychain：
+#   security add-generic-password -U -s noc-cloudflare -a cloudflare -T /usr/bin/security -w
+# [[cloudflare.accounts]]
+# account = "cloudflare"             # 标签，也作 Keychain 的 account 名
+# keychain_service = "noc-cloudflare"
+
+# ===== Supabase（托管 Postgres 项目纳入「数据库」tab：只读 + `ops db pause|resume` 暂停/恢复，不用就整段删）=====
+# 账号级 PAT(Management API token) 是密钥，不放配置——存 Keychain：
+#   security add-generic-password -U -s noc-supabase -a supabase -T /usr/bin/security -w
+# [[supabase.accounts]]
+# account = "supabase"
+# keychain_service = "noc-supabase"
+
+# ===== 腾讯云（不用就整段删）=====
+# [tencent]
+# account = "<tencent-account-id>"
+# ssh_user = "ubuntu"
+# ssh_key = "<keyfile-name>"
+# [tencent.regions]
+# "ap-nanjing" = ["Nanjing", "🇨🇳"]
+
+# ===== 内网（LAN）连通性预检（可选，不配则不门控）=====
+# `ops sync --local` 会逐台 TCP 探内网机器（local/sangfor/vmware/synology）。
+# 若当前不在内网/未连 VPN，逐台探测会吃满超时、再把所有机器误标 stopped。
+# 配了 probe 后：--local 开跑前先探这几个点，全都不通即判定"不在内网"——
+# 内网机器整体沿用上次数据、不重扫。留空/删掉 = 老行为。
+# probe：host:port 列表（无端口默认 22），任一通即算在内网。选内网里最稳的点，
+# 如网关或 vCenter/HCI 管理口。
+# [local_net]
+# probe = ["<gateway-or-vcenter-ip>:443"]
+
+# ===== 网络域：内网（lan） vs Tailscale =====
+# 每个本地网络账号都属于一个网络域，分开刷、互不误伤：
+#   ops sync --local       只刷 network = "lan"       门控 = 上面的 local_net.probe
+#   ops sync --tailscale   只刷 network = "tailscale"  门控 = `tailscale status`
+# 不写 network 字段会按 url 自动推导：100.64.0.0/10 地址或 *.ts.net 名字 → "tailscale"，
+# 其余 → "lan"。只有想覆盖自动推导（如经子网路由暴露的内网地址）才需要显式写。
+# [[synology.accounts]]
+# account = "<nas-on-tailnet>"
+# url     = "https://100.x.y.z:5001"
+# network = "tailscale"
+
+# ===== 实例用途备注（人工维护，可整段删）=====
+# 键=实例 ID（不用名字，实例改名后仍对得上），值=一句话用途。渲染进 inventory.md 实例表的
+# 「用途」列 + data.json 的 instances[].note；某个区/某朵云一台都没写就不加这一列。
+# inventory.md 每次 sync 整份重写——备注只有写在这里才活得过下一次 `ops sync`。
+# [instance_notes]
+# i-0123456789abcdef0 = "Caddy 边缘入口：反代 MCP 网关 + 官网静态站"
+
+# ===== 计划任务（EventBridge Scheduler）；不用定时任务可整段删 =====
+[scheduler]
+timezone = "Asia/Shanghai"
+display_tz = "北京时间(UTC+8)"
+role_name = "noc-scheduler"  # 各账号同名角色；ARN 由 arn:{partition}:iam::{profile}:role/{role_name} 推导
+
+# 非 AWS（腾讯/阿里）派发中枢：一个 AWS 账号上的 Lambda，从 Secrets Manager 取各云凭证后调其重启 API
+# [scheduler.dispatch]
+# account = "<aws-account-id>"
+# region = "ap-northeast-1"
+# lambda_arn = "arn:aws:lambda:ap-northeast-1:<aws-account-id>:function:noc-reboot-dispatcher"
+
+# [[scheduler.dispatch_clouds]]   # 已接入派发（凭证在 Secrets Manager）的 (cloud, account)
+# cloud = "tencent"
+# account = "<tencent-account-id>"
+
+[[scheduler.accounts]]       # AWS 直重启账号（partition 用 ARN 写法 aws-cn | aws）
+profile = "<aws-account-id>"
+partition = "aws"
+regions = ["us-west-2"]
+
+
+# ===== 火山引擎（单个默认 CLI 账号）=====
+# [[volcengine.accounts]]
+# account = "<volcengine-account-id>"
+# [volcengine.accounts.regions]
+# "cn-beijing" = ["Beijing", "🇨🇳"]
+
+# ===== Oracle Cloud =====
+# [[oracle.accounts]]
+# profile = "DEFAULT"
+# account = "<display-name>"
+# compartment = "<compartment-ocid>"
+# [oracle.accounts.regions]
+# "ap-tokyo-1" = ["Tokyo", "🇯🇵"]
+
+# Cloudflare / Supabase 的账号还可设置 token_env = "<ENV_VAR_NAME>"。
+# 只记录环境变量名，不放 token 值；变量存在时优先使用，否则回退 macOS Keychain。

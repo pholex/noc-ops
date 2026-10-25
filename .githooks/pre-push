@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+remote=${1:-origin}
+zero=0000000000000000000000000000000000000000
+while read -r local_ref local_oid remote_ref remote_oid; do
+    [ "$local_oid" = "$zero" ] && continue
+    python3 scripts/check-public-content.py --tree "$local_oid"
+    if [ "$remote_oid" = "$zero" ] || ! git cat-file -e "$remote_oid^{commit}" 2>/dev/null; then
+        # Check newly introduced commits; already-published ancestry is audited separately.
+        commits=$(git rev-list "$local_oid" --not "--remotes=$remote")
+        for commit in $commits; do
+            python3 scripts/check-public-content.py --commits "$commit^!"
+        done
+    else
+        python3 scripts/check-public-content.py --commits "$remote_oid..$local_oid"
+    fi
+done

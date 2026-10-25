@@ -1,0 +1,36 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  validate:
+    uses: ./.github/workflows/ci.yml
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/noc-ops
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist
+      - run: python scripts/check-release.py --tag "$RELEASE_TAG" --dist dist
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Verify existing release artifacts
+        id: existing
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python scripts/check-published.py --version "${RELEASE_TAG#v}" --dist dist >> "$GITHUB_OUTPUT"
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        if: steps.existing.outputs.published != 'true'
