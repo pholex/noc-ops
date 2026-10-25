@@ -11,6 +11,7 @@
 | `ec2-public-exposure-hardening.md` | 收紧 EC2 公网暴露面（安全组收口） | 任何 AWS 用户 |
 | `certbot-renewal-troubleshooting.md` | Let's Encrypt 证书过期 / 自动续期排障 | 任何 nginx + certbot 主机 |
 | `site-access-source-stats.md` | 统计某站点的访问来源（源 IP / 地理归属） | 任何 nginx / ALB 站点 |
+| `aws-lambda-scheduled-task.md` | 用 EventBridge Scheduler + Lambda 创建、验证、停用定时任务 | 需要定时执行自定义逻辑的 AWS 用户 |
 | `_TEMPLATE.md` | 沉淀新剧本时的骨架（触发意图 / 目标解析 / 是否写操作 / 执行步骤 / 注意事项） | 所有用户 |
 
 ## 约定
