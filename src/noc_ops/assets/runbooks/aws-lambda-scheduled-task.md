@@ -419,5 +419,6 @@ ops log scheduled-task-create "$STACK" --cloud aws --source cli \
 
 ## 相关剧本
 
+- [[aws-cloudwatch-alarm-notification]]
 - [[ec2-public-exposure-hardening]]
 - [[_TEMPLATE]]

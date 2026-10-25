@@ -12,6 +12,7 @@
 | `certbot-renewal-troubleshooting.md` | Let's Encrypt 证书过期 / 自动续期排障 | 任何 nginx + certbot 主机 |
 | `site-access-source-stats.md` | 统计某站点的访问来源（源 IP / 地理归属） | 任何 nginx / ALB 站点 |
 | `aws-lambda-scheduled-task.md` | 用 EventBridge Scheduler + Lambda 创建、验证、停用定时任务 | 需要定时执行自定义逻辑的 AWS 用户 |
+| `aws-cloudwatch-alarm-notification.md` | 配置 EC2 / RDS / Lambda 告警，验证指标评估与 SNS 通知，排障和清理 | 需要云资源告警的 AWS 用户 |
 | `_TEMPLATE.md` | 沉淀新剧本时的骨架（触发意图 / 目标解析 / 是否写操作 / 执行步骤 / 注意事项） | 所有用户 |
 
 ## 约定

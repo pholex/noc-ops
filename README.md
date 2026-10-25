@@ -70,7 +70,7 @@ ops sync --local    # 只扫机房里的机器（人要在内网或 VPN 里）
 
 ## 内置运维剧本
 
-公开包附带 [通用运维剧本](src/noc_ops/assets/runbooks/README.md)，包括 S3 使用核查、ALB 日志下线、EC2 安全组收口、证书续期排障、访问来源分析，以及 [EventBridge Scheduler + Lambda 定时任务](src/noc_ops/assets/runbooks/aws-lambda-scheduled-task.md)。工作区没有 Markdown 剧本时，初始化会复制这些文件；已有剧本时不会自动补齐或覆盖。
+公开包附带 [通用运维剧本](src/noc_ops/assets/runbooks/README.md)，包括 S3 使用核查、ALB 日志下线、EC2 安全组收口、证书续期排障、访问来源分析、[EventBridge Scheduler + Lambda 定时任务](src/noc_ops/assets/runbooks/aws-lambda-scheduled-task.md)，以及 [CloudWatch 告警配置与通知验证](src/noc_ops/assets/runbooks/aws-cloudwatch-alarm-notification.md)。工作区没有 Markdown 剧本时，初始化会复制这些文件；已有剧本时不会自动补齐或覆盖。
 
 ## 扩展与贡献
 
