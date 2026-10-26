@@ -10,7 +10,7 @@ README 里的表格说的是「有没有」，这里说「具体能看到什么�
 | 火山引擎 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
 | Google Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ | | | ✓ | ✓ |
 | Azure | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
-| Oracle Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | | ✓ | | ✓ |
+| Oracle Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | Media Streams | ✓ | | | ✓ | | ✓ |
 | Cloudflare | | ✓ 只读 | | ✓ | ✓ | ✓ | | | | | | |
 | Supabase | | | ✓ | ✓ | ✓ | | | | | | | 暂停/恢复 |
 | 内网虚拟化平台：VMware / 深信服 HCI | ✓ | | | | | | | | | | | ✓ |
@@ -22,6 +22,13 @@ README 里的表格说的是「有没有」，这里说「具体能看到什么�
 - 其它机器不分物理还是虚拟，在工作区 `local-servers.toml` 登记一行即可，`ops sync --local` 探 SSH 端口判断在线。
 - 人不在内网时，Tailscale 组网上的机器用 `ops sync --tailscale` 刷。
 - 机房机器不参与 `ops sync` 全量扫描，连不上不会被误判成「已删除」。
+
+### Oracle Media Streams CDN
+
+通过 `oci media-services` 按配置的隔间和区域盘点分发通道及 CDN 配置，支持 OCI Edge 和 Media Streams 内的 Akamai 配置。看板 CDN 页展示配置名称、类型、所属通道、域名、区域、生命周期与启用标志；通道域名不等于完整播放 URL。仅支持视频分发配置，不提供通用网站 CDN。
+
+刷新单个账号：`ops sync --kind=cdn --account=<OCI profile 或账号名>`。需要读取分发通道与 CDN 配置的 IAM 权限；扫描不递归子隔间。列表查询失败时保留该账号旧数据，配置详情失败时显示已获取的基本字段并标记采集不完整。不会采集 Akamai 鉴权密钥或签名播放 URL。
+
 
 ## 各云的补充说明
 

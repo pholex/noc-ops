@@ -724,7 +724,7 @@ def _collect_kind(kind, clouds=None):
     if kind == "serverless":
         return [f for p in provs for f in _provider_rows(p, "serverless")]
     if kind == "cdn":
-        return [c for p in provs for c in _provider_rows(p, "cdn")]           # AWS CloudFront（仅 global 分区）
+        return [c for p in provs for c in _provider_rows(p, "cdn")]           # 含 OCI Media Streams CDN
     if kind == "iam":
         return [u for p in provs for u in _provider_rows(p, "iam")]
     if kind == "apikeys":
@@ -1000,6 +1000,7 @@ ACCOUNT_SCOPED_KINDS = {
     "aliyun": ("instances", "storage", "domains", "databases", "serverless", "cdn", "iam", "billing", "credits"),   # AliyunProvider 产出的九类（BssOpenApi 账单不计费）
     "tencent": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "billing", "credits"),   # TencentProvider 产出的九类（storage 走 coscli）
     "volcengine": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "billing", "credits"),   # VolcengineProvider 产出的九类（storage 走 tosutil）
+    "oracle": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "billing"),
 }
 # 不带 --kind 时默认刷的类型：**排除 billing**——Cost Explorer 每请求计费（$0.01）；AWS 的 credits 也含一次 CE 调用，同样排除，
 # 不该被一句 `--account=X` 顺手带上；要刷成本请显式 `--account=X --kind=billing`。

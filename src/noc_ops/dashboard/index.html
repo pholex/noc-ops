@@ -446,18 +446,22 @@ const LAMBDA_COLS=[
   {field:'last_modified', headerName:'最后修改', width:120, cellClass:'mono'},
 ];
 const CDN_COLS=[
-  {field:'domain', headerName:'对外域名', width:260, cellClass:'alias mono',
+  {field:'domain', headerName:'对外 / 通道域名', width:260, cellClass:'alias mono',
      onCellClicked:p=>{ if(p.value && p.value!=='—') copyCell(p.value); },
      cellRenderer:p=>p.value?copyableCell(p.value):'—'},
   cloudCol(),
+  {field:'name', headerName:'配置名称', width:170},
+  {field:'service', headerName:'服务类型', width:190},
+  {field:'channel_name', headerName:'分发通道', width:180},
+  {field:'region_display', headerName:'区域', width:140},
   {field:'partition', headerName:'分区', width:96},
   {field:'account', headerName:'账号', width:140, cellClass:'mono dim'},
   {field:'origin', headerName:'源站', width:300, cellClass:'mono dim', cellRenderer:p=>truncTip(p.value)},
   {field:'status', headerName:'状态', width:118, cellRenderer:p=>pill(p.value)},
-  {field:'enabled', headerName:'启用', width:80, cellRenderer:p=>p.value?'✓':'✗'},
+  {field:'enabled', headerName:'启用', width:80, cellRenderer:p=>p.value==null?'—':p.value?'✓':'✗'},
   {field:'cert', headerName:'证书', width:110, cellClass:'mono'},
   {field:'price_class', headerName:'价格档', width:90, cellClass:'mono dim'},
-  {field:'id', headerName:'分布ID', width:170, cellClass:'mono dim'},
+  {field:'id', headerName:'分布 / 配置 ID', width:170, cellClass:'mono dim'},
   {field:'last_modified', headerName:'最后修改', width:120, cellClass:'mono'},
 ];
 const IAM_COLS=[

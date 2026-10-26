@@ -16,11 +16,13 @@
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | AWS · 阿里云 · 腾讯云 · 火山引擎 · Azure | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Google Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ |
-| Oracle Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ |
+| Oracle Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | ✓* | ✓ | ✓ |
 | Cloudflare | | ✓ | | ✓ | ✓ | ✓ | | |
 | Supabase | | | ✓ | ✓ | ✓ | | | 暂停 / 恢复 |
 | 机房：VMware / 深信服 | ✓ | | | | | | | ✓ |
 | 机房：群晖、任何能 SSH 的机器 | ✓ | | | | | | | |
+
+\* Oracle Cloud CDN 支持 Media Streams 的 OCI Edge / Akamai 分发配置盘点，仅用于视频分发。可用 `ops sync --kind=cdn --account=<OCI profile>` 刷新，看板展示配置、通道、域名、区域与启用状态。
 
 各云细节与全部命令见 [docs/clouds.md](docs/clouds.md)。
 

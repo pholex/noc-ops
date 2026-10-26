@@ -1,4 +1,4 @@
-"""Oracle Cloud Infrastructure（OCI）驱动（Compute / Object Storage / DNS / Database / Functions / IAM，shell 出 oci CLI）。
+"""Oracle Cloud Infrastructure（OCI）驱动（Compute / Object Storage / DNS / Database / Functions / Media Streams CDN / IAM，shell 出 oci CLI）。
 
 展示（只读）：list_instances（Compute 实例 + VNIC 取公网/内网 IP）/ list_storage（对象存储桶）/
 list_domains（OCI DNS zone，并入「域名」tab）/ list_databases（Autonomous Database + DB System）/
@@ -22,7 +22,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from ..collection import observed, optional
+from ..collection import failed, observed, optional
 from .. import deploy_config
 from ..aws_safety import is_read_only_oci, is_reboot_oci
 from .base import Provider, resolve_keyfile
@@ -91,6 +91,36 @@ def _oci(account, args, region=None, timeout=60, soft=False):
     # 本模块所有 list_* 消费方都要 list，故统一保证返回 list（非 list/无 data → []）。
     data = parsed.get("data", []) if isinstance(parsed, dict) else parsed
     return data if isinstance(data, list) else []
+
+
+@observed(result="nullable")
+def _media_list(account, resource, flag, resource_id, region):
+    """Media Services lists return data.items, unlike older OCI list APIs."""
+    raw = _oci_raw(account, ["oci", "media-services", resource, "list", flag, resource_id, "--all"],
+                   region=region)
+    if raw is None:
+        return None
+    # OCI CLI can suppress output when there are no items.
+    if raw == {} or (isinstance(raw, dict) and raw.get("opc-total-items") == "0" and "data" not in raw):
+        return []
+    data = raw.get("data") if isinstance(raw, dict) else None
+    items = data.get("items") if isinstance(data, dict) else None
+    if not isinstance(items, list) or any(not isinstance(i, dict) or not i.get("id") for i in items):
+        return None
+    return items
+
+
+@optional
+def _media_cdn_details(account, config_id, region):
+    raw = _oci_raw(account, ["oci", "media-services", "stream-cdn-config", "get",
+                             "--stream-cdn-config-id", config_id], region=region)
+    data = raw.get("data") if isinstance(raw, dict) else None
+    config = data.get("config") if isinstance(data, dict) else None
+    if not isinstance(config, dict) or not config.get("type"):
+        failed("invalid_response" if raw is not None else "query_failed")
+        return {}
+    # Do not retain Akamai authentication keys or signed playback URLs.
+    return {k: config[k] for k in ("type", "edge-hostname") if k in config}
 
 
 @observed(result="nullable")
@@ -348,6 +378,46 @@ class OracleProvider(Provider):
                             "last_modified": (f.get("time-updated") or f.get("time-created") or "")[:10],
                         })
         out.sort(key=lambda x: (x["account"], x["region"], x["name"] or ""))
+        return out
+
+    def list_cdn(self):
+        """Media Streams CDN configurations, scoped to configured compartments/regions."""
+        out = []
+        for a in self._accounts():
+            if not a.get("profile") or not a.get("compartment"):
+                continue
+            for region, disp, _flag in self._regions(a):
+                channels = _media_list(a, "stream-distribution-channel", "--compartment-id",
+                                       a["compartment"], region)
+                for channel in channels or []:
+                    if channel.get("lifecycle-state") == "DELETED":
+                        continue
+                    configs = _media_list(a, "stream-cdn-config", "--distribution-channel-id",
+                                          channel["id"], region)
+                    for config in configs or []:
+                        if config.get("lifecycle-state") == "DELETED":
+                            continue
+                        details = _media_cdn_details(a, config["id"], region)
+                        cdn_type = details.get("type", "")
+                        service = {"EDGE": "OCI Edge Stream CDN", "AKAMAI_MANUAL": "Media Streams / Akamai"}.get(
+                            cdn_type, "OCI Media Streams CDN")
+                        channel_name = channel.get("display-name") or channel["id"]
+                        out.append({
+                            "id": config["id"], "name": config.get("display-name") or config["id"],
+                            "cloud": self.cloud, "account": self._label(a),
+                            "region": region or "", "region_display": disp or region or "",
+                            "partition": "", "service": service, "cdn_type": cdn_type,
+                            "distribution_channel_id": channel["id"], "channel_name": channel_name,
+                            # Edge uses the channel domain; it is not a complete playback URL.
+                            "domain": (channel.get("domain-name") or "") if cdn_type == "EDGE"
+                                      else details.get("edge-hostname") or "",
+                            "origin": channel.get("domain-name") or "", "aliases": "",
+                            "status": (config.get("lifecycle-state") or "unknown").lower(),
+                            "enabled": config.get("is-enabled"), "cert": "—", "price_class": "—",
+                            "last_modified": (config.get("time-updated") or config.get("time-created") or "")[:10],
+                            "comment": f"{service} · {channel_name}",
+                        })
+        out.sort(key=lambda r: (r["account"], r["region"], r["channel_name"], r["name"]))
         return out
 
     # —— 租户 IAM 用户（用户在 tenancy 根隔间）——
