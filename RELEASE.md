@@ -20,8 +20,8 @@ ops update --yes        # 已确认的自动化调用
 3. 审查后提交代码，给同一提交打 `vX.Y.Z` tag。确认发布后推送分支与 tag。
 4. `release.yml` 先执行跨系统测试、构建与安装检查，再校验 tag/产物版本，最后通过 PyPI Trusted Publishing 发布。普通分支 push 不发布包。
 
-首次发布前，维护者需在 PyPI 为 `pholex/noc-ops`、工作流 `release.yml`、GitHub environment `pypi` 配置 Trusted Publisher；GitHub 侧设置对应 environment。仓库中不存发布 token。此配置需要仓库/PyPI 所有者权限，本地新增工作流不会自动建立远端授权。
+自动发布使用 PyPI Trusted Publishing，配置见 [`.github/workflows/release.yml`](.github/workflows/release.yml)。
 
 参考：[uv 工具更新](https://docs.astral.sh/uv/guides/tools/#upgrading-tools)、[PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/using-a-publisher/)。
 
-已通过本机凭据发布的版本，工作流会校验 PyPI 文件名与 SHA-256 完全一致后跳过重复上传。新版本仍使用 Trusted Publishing；网络错误或同版本产物不一致会使检查失败。
+重复发布时，工作流校验 PyPI 文件名和 SHA-256；完全一致则跳过上传，不一致或查询失败则终止发布。
