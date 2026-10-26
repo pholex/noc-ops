@@ -233,7 +233,7 @@ def test_dashboard_totals_and_overview_keep_currencies_separate():
     html = (Path(__file__).parents[2] / "src/noc_ops/dashboard/index.html").read_text()
     currency_code = html[html.index("const CUR_SYM="):html.index("const BILLING_COLS=")]
     total_code = html[html.index("let _billTotalKey="):html.index("gridApi = createGrid")]
-    overview_code = html[html.index("  const bill=(DATA.billing||[]);"):html.index("  // 卡片顺序")]
+    overview_code = html[html.index("  const bill=(DATA.billing||[]).filter"):html.index("  // 卡片顺序")]
     script = '''const assert=require('node:assert/strict');
 const DATA={billing:[
  {month:'2026-10',currency:'USD',amount:1},

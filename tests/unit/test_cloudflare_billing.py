@@ -70,7 +70,7 @@ def mock_api(monkeypatch, overrides=None):
     return calls
 
 
-def test_cycle_month_decimal_totals_currency_and_account_isolation(workspace, monkeypatch):
+def test_actual_cycles_decimal_totals_currency_and_account_isolation(workspace, monkeypatch):
     calls = mock_api(monkeypatch, {PATH: ok([
         charge(0.1), charge(0.2), charge(-0.05),
         charge(3, BillingCurrency="EUR"), charge(0, ServiceName="D1"),
@@ -81,11 +81,14 @@ def test_cycle_month_decimal_totals_currency_and_account_isolation(workspace, mo
     assert sync.refresh_account("cf-demo", "billing") == 0
     result = json.loads(sync.NOC_DATA.read_text())
     rows = [r for r in result["billing"] if r["account"] == "cf-demo"]
-    amounts = {(r["service"], r["currency"]): r["amount"] for r in rows}
-    assert amounts == {("Workers Standard", "USD"): 0.75, ("Workers Standard", "EUR"): 3,
-                       ("D1", "USD"): 0, ("R2", "USD"): 0.00002}
+    period = "2026-12-20T00:00:00+00:00"
+    amounts = {(r["service"], r["currency"], r["period_start"]): r["amount"] for r in rows}
+    assert amounts == {("Workers Standard", "USD", period): 0.25,
+                       ("Workers Standard", "EUR", period): 3,
+                       ("D1", "USD", period): 0, ("R2", "USD", period): 0.00002,
+                       ("Workers Standard", "USD", "2026-12-31T23:30:00+00:00"): 0.5}
     assert all(r["month"] == "2026-12" and r["partial"] for r in rows)
-    assert all(r["cost_basis"] == "按量费用 / 账期起始月" for r in rows)
+    assert all(r["cost_basis"] == "按量费用 / 账期" and r["period_basis"] == "billing_cycle" for r in rows)
     assert workspace[1] in result["billing"]
     assert calls[-1][1] == {"from": ["2026-11-01"], "to": ["2027-01-05"]}
     assert all(token == "Bearer cf-demo" for _, _, token in calls)

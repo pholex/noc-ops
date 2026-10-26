@@ -283,7 +283,7 @@ class CloudflareProvider(Provider):
         return data
 
     def list_billing(self, months=3):
-        """PayGo 按量费用，按账期起始月汇总；不是自然月用量或完整发票。"""
+        """PayGo 按量费用，按实际账期汇总；不是自然月用量或完整发票。"""
         now = _dt.datetime.now(_dt.timezone.utc)
         index = now.year * 12 + now.month - months
         start = _dt.datetime(index // 12, index % 12 + 1, 1, tzinfo=_dt.timezone.utc)
@@ -327,11 +327,11 @@ class CloudflareProvider(Provider):
                         period = period.astimezone(_dt.timezone.utc)
                         if not start <= period <= now:
                             continue
-                        key = (service, currency, period.strftime("%Y-%m"))
+                        key = (service, currency, period.isoformat())
                         summed[key] = summed.get(key, Decimal(0)) + amount
                     except (KeyError, TypeError, ValueError, AttributeError, InvalidOperation):
                         failed("invalid_response")
-                for (service, currency, month), amount in summed.items():
+                for (service, currency, period_start), amount in summed.items():
                     value = float(amount)
                     if not isfinite(value):
                         failed("invalid_response")
@@ -339,12 +339,12 @@ class CloudflareProvider(Provider):
                     out.append({
                         "cloud": self.cloud, "account": label, "cf_account_id": aid,
                         "cf_account": acct.get("name") or "", "service": service,
-                        "month": month, "amount": value, "currency": currency,
-                        "period_start": month + "-01", "partial": True,
+                        "month": period_start[:7], "amount": value, "currency": currency,
+                        "period_start": period_start, "period_basis": "billing_cycle", "partial": True,
                         "fetched_at": now.isoformat(timespec="seconds"),
-                        "source": "Cloudflare Billable Usage v1", "cost_basis": "按量费用 / 账期起始月",
+                        "source": "Cloudflare Billable Usage v1", "cost_basis": "按量费用 / 账期",
                     })
-        return sorted(out, key=lambda r: (r["account"], r["cf_account_id"], r["month"], r["service"], r["currency"]))
+        return sorted(out, key=lambda r: (r["account"], r["cf_account_id"], r["period_start"], r["service"], r["currency"]))
 
     def _each_account(self):
         """(配置标签, token) 生成器；Keychain 没 token 的账号提示并跳过。"""

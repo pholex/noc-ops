@@ -52,7 +52,9 @@ Containers 按应用列出实际容器实例，展示状态、当前部署区域
 
 使用 [Billable Usage v1 API](https://developers.cloudflare.com/api/resources/billing/subresources/usage/methods/get_account_usage_v1/) 读取自助账号的按量费用，需要 `Billing Read`；账号发现需要 `Account Settings Read`。`ops sync --kind=billing --account=<标签>` 强制刷新，完整同步复用现有成本缓存策略；仅按账号同步时不查询成本。
 
-查询近三个月起始的账期，按 Cloudflare 账号、产品、账期起始月与原币种汇总 `ContractedCost`，不累加累计金额字段。账期月不等于自然使用月，数据每日更新，API 未提供账期结束日，记录保留 `partial=true`。这不是完整发票，不含固定订阅费、税费与历史调整；不使用受限的 v2 企业接口。权限不足、账号未覆盖或响应异常时保留旧成本，只有成功的空结果才清空。
+查询近三个月起始的账期，按 Cloudflare 账号、产品、实际账期起始时间与原币种汇总 `ContractedCost`，不累加累计金额字段。首页将各账号、产品、币种的最近账期按量费用单独展示，按起始日期列出，不计入自然月的本月或上月成本；明细显示真实账期开始日期（UTC），月份筛选对应账期起始月。旧缓存仍显示为旧汇总，刷新成本后才显示真实账期。
+
+账期不等于自然使用月，数据每日更新，API 未提供账期结束日，记录保留 `partial=true`。这不是完整发票，不含固定订阅费、税费与历史调整；不使用受限的 v2 企业接口。权限不足、账号未覆盖或响应异常时保留旧成本，只有成功的空结果才清空。
 
 ## 命令全集
 

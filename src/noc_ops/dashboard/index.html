@@ -149,6 +149,10 @@
   .ov-card.ov-bill{width:165px}                   /* 本月成本：固定 165 */
   .ov-card.ov-bill.ov-wide{width:auto;min-width:165px;max-width:240px}   /* 多币种按内容放宽 */
   .ov-bill .ov-v{display:block;font-size:16px;line-height:1.4;overflow-wrap:anywhere}
+  .ov-card.ov-cf-bill{width:auto;min-width:240px;max-width:360px}
+  .ov-cycle{display:flex;justify-content:space-between;gap:12px;font-size:13px}
+  .ov-cycle-date{color:var(--muted);font-weight:400}
+  .ov-cf-bill .ov-meta{white-space:normal}
   .ov-card.ov-wide .ov-meta{overflow:hidden;text-overflow:ellipsis}
   .ov-card:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--border));transform:translateY(-1px);box-shadow:var(--shadow)}
   .ov-k{font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.3px;white-space:nowrap}
@@ -242,7 +246,7 @@
       <select id="f-kind" onchange="onFilter()"><option value="">全部类型</option></select>
     </span>
     <span id="billing-filters" style="display:none;gap:9px">
-      <select id="f-month" onchange="onFilter()"><option value="">全部月份</option></select>
+      <select id="f-month" onchange="onFilter()" title="Cloudflare 按账期起始月筛选"><option value="">全部月份 / 账期起始月</option></select>
     </span>
   </span>
   <div class="search">
@@ -534,14 +538,42 @@ const amountCol=(cur,extra={})=>({
   valueGetter:p=>{const d=p.data; if(!d) return null;
      return d._total ? d['amount_'+cur.toLowerCase()] : (d.currency===cur ? d.amount : null);},
   valueFormatter:p=>money(p.value,cur), ...extra});
+// 旧缓存的 period_start 是合成的月初；只有明确标记的账期才能用于日期展示。
+const billingCycleStart=b=>b.period_basis==='billing_cycle' && Number.isFinite(Date.parse(b.period_start))
+  ? new Date(b.period_start).toISOString() : '';
+const billingCycleLabel=start=>start.slice(0,10)+(start.slice(11,19)==='00:00:00'?'':' '+start.slice(11,19))+' 起';
+const billingPeriodLabel=b=>b.cloud==='cloudflare'
+  ? (billingCycleStart(b)?billingCycleLabel(billingCycleStart(b)):(/^\d{4}-\d{2}$/.test(b.month||'')?b.month:'')+' (旧汇总)')
+  : (b.month||'')+(b.partial?' (至今)':'');
+function cloudflareBillingSummary(rows){
+  const latest=new Map(); let hasLegacy=false;
+  for(const b of rows){
+    if(b.cloud!=='cloudflare') continue;
+    const start=billingCycleStart(b);
+    if(!start){hasLegacy=true;continue;}
+    if(!/^[A-Z]{3}$/.test(b.currency||'')) continue;
+    // 各账号、服务和币种分别取最近账期，不能让一个服务的新账期遮掉其他服务。
+    const key=JSON.stringify([b.account,b.cf_account_id,b.service,b.currency]);
+    const prior=latest.get(key);
+    if(!prior || start>prior.start) latest.set(key,{start,rows:[b]});
+    else if(start===prior.start) prior.rows.push(b);
+  }
+  const periods=new Map();
+  for(const {start,rows:items} of latest.values()){
+    if(!periods.has(start)) periods.set(start,{});
+    const amounts=periods.get(start);
+    for(const b of items) amounts[b.currency]=(amounts[b.currency]||0)+(b.amount||0);
+  }
+  return {periods:[...periods].sort(([a],[b])=>b.localeCompare(a)).map(([start,amounts])=>({start,amounts})),hasLegacy};
+}
 const BILLING_COLS=[
   {field:'account', headerName:'账号', width:150, cellClass:'mono dim'},
   cloudCol(),
   {field:'service', headerName:'服务', flex:1, minWidth:280, suppressSizeToFit:false, cellClass:'mono'},
-  {field:'month', headerName:'月份', width:155, cellClass:'mono',
-     valueFormatter:p=>(p.value||'')+(p.data?.cloud==='cloudflare'?' (账期)':p.data?.partial?' (至今)':'')},
+  {colId:'billing_period', headerName:'月份 / 账期开始 (UTC)', width:240, cellClass:'mono',
+     valueGetter:p=>p.data && !p.data._total?billingPeriodLabel(p.data):''},
   {field:'cost_basis', headerName:'成本口径', width:220,
-     tooltipValueGetter:p=>p.data?.cloud==='cloudflare'?'按账期起始月汇总按量费用，每日更新；不含完整发票的固定订阅费、税费及调整。':p.value},
+     tooltipValueGetter:p=>p.data?.cloud==='cloudflare'?'按实际账期汇总按量费用，每日更新；不含完整发票的固定订阅费、税费及调整。旧汇总需刷新成本后显示真实账期。':p.value},
 ];
 const SCHED_COLS=[
   {colId:'exec', headerName:'执行状态', width:104, valueGetter:p=>execStatus(p.data),
@@ -909,7 +941,7 @@ function renderOverview(){
   const rb=(DATA.runbooks||[]); const rbDist=rb.filter(r=>r.dist).length;
   const ol=(DATA.ops_log||[]); const olFail=ol.filter(e=>e.result!=='ok').length;
   // 成本：当月至今合计 + 上月全月参考（当月是 partial，不算环比%以免误导）
-  const bill=(DATA.billing||[]);
+  const bill=(DATA.billing||[]).filter(b=>b.cloud!=='cloudflare');
   const curM = bill.reduce((m,b)=> (b.month>m?b.month:m), '');
   const prevM = (ym=>{ if(!ym) return ''; let [y,m]=ym.split('-').map(Number); if(--m<1){m=12;y--;} return `${y}-${String(m).padStart(2,'0')}`; })(curM);
   const currencies=billingCurrencies().filter(c=>bill.some(b=>b.currency===c));
@@ -917,6 +949,8 @@ function renderOverview(){
   const costLabel=ym=>currencies.map(c=>money(sumM(ym,c),c)).join(' · ');
   const currentCost=bill.length?costLabel(curM):'—';
   const prevMeta=bill.length&&prevM?'上月 '+costLabel(prevM):'—';
+  const cfBill=cloudflareBillingSummary(DATA.billing||[]);
+  const cfCost=cfBill.periods.map(p=>`<div class="ov-cycle"><span class="ov-cycle-date">${billingCycleLabel(p.start)}</span><span>${Object.entries(p.amounts).sort(([a],[b])=>a.localeCompare(b)).map(([cur,amount])=>money(amount,cur)).join(' · ')}</span></div>`).join('');
 
   // 卡片顺序与下方 tab 一致：实例 → 域名 → 数据库 → 存储 → 函数 → CDN → IAM → AI 密钥 → 消息 → 成本 → …
   const cards = `
@@ -966,6 +1000,11 @@ function renderOverview(){
       <div class="ov-v">${currentCost}</div>
       <div class="ov-meta">${prevMeta}</div>
     </div>
+    ${cfBill.periods.length || cfBill.hasLegacy?`<div class="ov-card ov-bill ov-cf-bill" onclick="switchView('billing')">
+      <div class="ov-k">Cloudflare · 最近账期按量费用</div>
+      <div class="ov-v">${cfCost||'—'}</div>
+      <div class="ov-meta">${cfBill.hasLegacy?'另有旧汇总，刷新成本后显示账期':'各服务最近账期 · 起始日期 UTC'}</div>
+    </div>`:''}
     <div class="ov-card" onclick="switchView('scheduled')">
       <div class="ov-k">计划任务</div>
       <div class="ov-v">${sched.length}</div>
