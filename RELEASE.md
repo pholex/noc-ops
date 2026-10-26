@@ -11,8 +11,6 @@ ops update              # 展示步骤，确认后更新
 ops update --yes        # 已确认的自动化调用
 ```
 
-0.2.x 尚无 `ops update` 时，先运行 `uv tool upgrade noc-ops`，再运行 `ops setup`。
-
 更新使用 `uv tool upgrade noc-ops`，保留 uv 记录的安装来源、extra、扩展和版本约束；随后使用更新后的 `ops setup` 刷新 skill。工作区数据不参与更新。固定版本或本地源码安装不会自动切换到 PyPI 最新版；若要切换来源或回退版本，请用最初的 `uv tool install` 参数（包括所有 `--with` 扩展）明确安装目标版本，再运行 `ops setup`。pip、源码虚拟环境等非 uv tool 安装只支持版本查询，请使用原安装方式更新。
 
 ## 维护者发布
