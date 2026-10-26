@@ -11,7 +11,7 @@ README 里的表格说的是「有没有」，这里说「具体能看到什么�
 | Google Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | Cloud CDN | ✓ | ✓ | | BigQuery 导出 | ✓ | ✓ |
 | Azure | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
 | Oracle Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | Media Streams | ✓ | | | ✓ | | ✓ |
-| Cloudflare | Containers | ✓ 只读 | D1 | ✓ | ✓ | ✓ | | | | | | |
+| Cloudflare | Containers | ✓ 只读 | D1 | ✓ | ✓ | ✓ | | | | 按量费用 | | |
 | Supabase | | | ✓ | ✓ | ✓ | | | | | | | 暂停/恢复 |
 | 内网虚拟化平台：VMware / 深信服 HCI | ✓ | | | | | | | | | | | ✓ |
 | 内网其它主机：群晖、任何能 SSH 的物理机或虚机 | ✓ | | | | | | | | | | | |
@@ -47,6 +47,12 @@ README 里的表格说的是「有没有」，这里说「具体能看到什么�
 Containers 按应用列出实际容器实例，展示状态、当前部署区域、规格、所属应用和镜像。无实例的应用不计为机器，不提供 SSH 或重启。D1 展示名称、UUID、容量、创建日期和只读副本配置；详情失败仍保留基本信息并标记采集不完整。区域为 jurisdiction 限制（未设置时显示自动），不代表实时运行位置；API 未提供的状态与连接端点显示为空。不执行 SQL，也不采集容器环境变量。
 
 接口说明：[Containers 实例](https://developers.cloudflare.com/api/resources/containers/subresources/applications/subresources/instances/methods/list/)、[D1 数据库](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/get/)。
+
+### Cloudflare 成本
+
+使用 [Billable Usage v1 API](https://developers.cloudflare.com/api/resources/billing/subresources/usage/methods/get_account_usage_v1/) 读取自助账号的按量费用，需要 `Billing Read`；账号发现需要 `Account Settings Read`。`ops sync --kind=billing --account=<标签>` 强制刷新，完整同步复用现有成本缓存策略；仅按账号同步时不查询成本。
+
+查询近三个月起始的账期，按 Cloudflare 账号、产品、账期起始月与原币种汇总 `ContractedCost`，不累加累计金额字段。账期月不等于自然使用月，数据每日更新，API 未提供账期结束日，记录保留 `partial=true`。这不是完整发票，不含固定订阅费、税费与历史调整；不使用受限的 v2 企业接口。权限不足、账号未覆盖或响应异常时保留旧成本，只有成功的空结果才清空。
 
 ## 命令全集
 

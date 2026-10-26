@@ -1004,7 +1004,7 @@ ACCOUNT_SCOPED_KINDS = {
     "volcengine": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "billing", "credits"),   # VolcengineProvider 产出的九类（storage 走 tosutil）
     "oracle": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "billing"),
     "gcp": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "apikeys", "billing", "credits"),
-    "cloudflare": ("instances", "domains", "databases", "storage", "serverless", "cdn"),
+    "cloudflare": ("instances", "domains", "databases", "storage", "serverless", "cdn", "billing"),
 }
 # 不带 --kind 时默认刷的类型：**排除 billing**——Cost Explorer 每请求计费（$0.01）；AWS 的 credits 也含一次 CE 调用，同样排除，
 # 不该被一句 `--account=X` 顺手带上；要刷成本请显式 `--account=X --kind=billing`。

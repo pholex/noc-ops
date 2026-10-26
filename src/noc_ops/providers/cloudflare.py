@@ -15,6 +15,9 @@ token 需要的只读权限：Zone:Read、DNS:Read、Zone Settings:Read；要显
 """
 import datetime as _dt
 import json
+import re
+from decimal import Decimal, InvalidOperation
+from math import isfinite
 import subprocess
 import sys
 import urllib.error
@@ -35,6 +38,7 @@ _SCOPE_HINT = {
     "containers": "Account → Workers Containers:Read",
     "d1": "Account → D1:Read",
     "accounts": "Account → Account Settings:Read",
+    "billing": "Billing:Read",
 }
 
 
@@ -270,6 +274,77 @@ class CloudflareProvider(Provider):
                         "note": "D1" + (f" · 只读副本 {replication}" if replication else ""),
                     })
         return sorted(out, key=lambda r: (r["account"], r["name"], r["id"]))
+
+    def _billing_data(self, token, path):
+        data = self._get(token, path, quiet=True)
+        if data is None:
+            failed()
+            print("  ⚠️ Cloudflare 成本查询失败，请检查网络及 Billing:Read 权限。", file=sys.stderr)
+        return data
+
+    def list_billing(self, months=3):
+        """PayGo 按量费用，按账期起始月汇总；不是自然月用量或完整发票。"""
+        now = _dt.datetime.now(_dt.timezone.utc)
+        index = now.year * 12 + now.month - months
+        start = _dt.datetime(index // 12, index % 12 + 1, 1, tzinfo=_dt.timezone.utc)
+        # 一次覆盖整段账期起始日，不按自然月拆请求（API 要求包含订阅 anchor day）。
+        query = urlencode({"from": start.date().isoformat(), "to": now.date().isoformat()})
+        out = []
+        for label, token in self._each_account():
+            for acct in self._accounts(token):
+                aid = acct["id"]
+                path = f"/accounts/{quote(aid, safe='')}/billable-usage"
+                info = self._billing_data(token, path + "/info")
+                if info is None:
+                    continue
+                coverage = info.get("result")
+                if not isinstance(coverage, dict) or type(coverage.get("covered")) is not bool:
+                    failed("invalid_response")
+                    continue
+                if not coverage["covered"]:
+                    failed("billing_not_covered")
+                    print("  ⚠️ Cloudflare 账号不在按量费用 API 的覆盖范围内，保留旧成本数据。", file=sys.stderr)
+                    continue
+                data = self._billing_data(token, path + "?" + query)
+                if data is None:
+                    continue
+                rows = data.get("result")
+                if not isinstance(rows, list):
+                    failed("invalid_response")
+                    continue
+                summed = {}
+                for row in rows:
+                    try:
+                        service, currency = row["ServiceName"], row["BillingCurrency"]
+                        period = _dt.datetime.fromisoformat(row["BillingPeriodStart"].replace("Z", "+00:00"))
+                        amount = Decimal(str(row["ContractedCost"]))
+                        if (not isinstance(service, str) or not service.strip()
+                                or not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency)
+                                or period.tzinfo is None or not amount.is_finite()
+                                or row.get("BillingAccountId", aid) != aid
+                                or row.get("ChargeCategory", "Usage") != "Usage"):
+                            raise ValueError("invalid billing row")
+                        period = period.astimezone(_dt.timezone.utc)
+                        if not start <= period <= now:
+                            continue
+                        key = (service, currency, period.strftime("%Y-%m"))
+                        summed[key] = summed.get(key, Decimal(0)) + amount
+                    except (KeyError, TypeError, ValueError, AttributeError, InvalidOperation):
+                        failed("invalid_response")
+                for (service, currency, month), amount in summed.items():
+                    value = float(amount)
+                    if not isfinite(value):
+                        failed("invalid_response")
+                        continue
+                    out.append({
+                        "cloud": self.cloud, "account": label, "cf_account_id": aid,
+                        "cf_account": acct.get("name") or "", "service": service,
+                        "month": month, "amount": value, "currency": currency,
+                        "period_start": month + "-01", "partial": True,
+                        "fetched_at": now.isoformat(timespec="seconds"),
+                        "source": "Cloudflare Billable Usage v1", "cost_basis": "按量费用 / 账期起始月",
+                    })
+        return sorted(out, key=lambda r: (r["account"], r["cf_account_id"], r["month"], r["service"], r["currency"]))
 
     def _each_account(self):
         """(配置标签, token) 生成器；Keychain 没 token 的账号提示并跳过。"""

@@ -1,6 +1,6 @@
 ---
 name: multicloud-ops
-description: 多云运维（AWS / 阿里云 / 腾讯云 / 火山引擎 / Google Cloud / Microsoft Azure / Oracle Cloud / Cloudflare / Supabase）+ 内网机器（VMware / 深信服 HCI / 群晖 / 任何能 SSH 的内网主机）——用 Bash 直调各云 CLI 与 SSH 完成查状态、启停/重启、上游解析、清单同步等日常运维；Cloudflare(Containers / D1 / DNS / R2 / Workers / CDN) 只读纳管，Supabase(托管 Postgres) 只读 + 项目暂停/恢复（ops db，需确认），本地网络机器需在内网/VPN 内且多数只有 SSH。数据与剧本在工作区 {{NOC_HOME}}。当用户提到 noc / ops sync / 云运维，或要查实例状态、重启机器、查域名证书、探测出口 IP 时使用本 skill。
+description: 多云运维（AWS / 阿里云 / 腾讯云 / 火山引擎 / Google Cloud / Microsoft Azure / Oracle Cloud / Cloudflare / Supabase）+ 内网机器（VMware / 深信服 HCI / 群晖 / 任何能 SSH 的内网主机）——用 Bash 直调各云 CLI 与 SSH 完成查状态、启停/重启、上游解析、清单同步等日常运维；Cloudflare(Containers / D1 / DNS / R2 / Workers / CDN / 按量成本) 只读纳管，Supabase(托管 Postgres) 只读 + 项目暂停/恢复（ops db，需确认），本地网络机器需在内网/VPN 内且多数只有 SSH。数据与剧本在工作区 {{NOC_HOME}}。当用户提到 noc / ops sync / 云运维，或要查实例状态、重启机器、查域名证书、探测出口 IP 时使用本 skill。
 metadata:
   version: "{{NOC_VERSION}}"
   requires:
@@ -49,6 +49,7 @@ metadata:
 
 ## 典型任务
 - **先检查清单新鲜度**：读 `data.json` 的 `collection_status`，按 `cloud/account/kind/region` 确认范围。`status=error` 表示采集失败，已有记录原样沿用（`preserved=true`），不能据此断言资源已删除或状态实时有效；`partial` 表示列表已更新但补充字段不全。引用 `last_success_at` 说明上次完整成功时间，缺失时说“尚无记录”，不要拿 `generated_at` 代替。成功查到零条才清空对应范围；AWS 实例按账号×区域隔离，其它云资源按账号×类型隔离；Azure 成本跨订阅共享计费档案，按整批成本隔离。全量、`--kind` 和 `--account` 都遵守此规则。
+- **Cloudflare 成本**：`ops sync --kind=billing --account=<标签>` 读取 Billable Usage v1（自助账号，token 需 `Billing Read`；账号发现需 `Account Settings Read`）。近三个月起始的账期按产品、账期起始月、原币种汇总 `ContractedCost`，不累加 `CumulatedContractedCost`。每日更新，`partial=true`；仅为按量费用，不含固定订阅费、税费及历史调整，不能当成完整发票或自然月用量。完整同步沿用成本缓存策略，单账号默认不刷成本；未覆盖、无权限或响应异常时保留旧数据。
 - **Cloudflare Containers / D1 刷新**：`ops sync --kind=instances --account=<标签>` / `ops sync --kind=databases --account=<标签>`；token 分别需要 `Workers Containers Read` / `D1 Read`，账号发现需要 `Account Settings Read`。列表失败保留旧清单；D1 详情失败标记采集不完整。Containers 是实际容器实例，无实例的应用不计为机器；D1 的区域表示 jurisdiction 限制，状态与端点无数据时留空。
 - **初始化与体检**：`ops init` 按需选择九朵云；`--cloud <云>` 只添加该云，保留其它账号/备注/计划任务。`ops doctor --cloud <云>` 按配置账号验证；`--offline` 不联网，`--json` 给结构化结果。Cloudflare/Supabase 可配置 `token_env`（环境变量名）或 Keychain，永远不把 token 值写入 TOML。
 - **统一定位与预览**：先用 `ops find <目标> --kind instances|databases|… --cloud <云> --account <账号> --region <区域> --json`；返回的 `noc://…` 是可传给 CLI/MCP 的完整资源引用。重复 ID 或同名时必须收窄，不能取第一条。按输出的 `capabilities` 选择支持的操作。`ops reboot` / `ops db` 支持相同筛选参数，`--dry-run --json` 不读取凭证、不调用 API；重启沿用免二次确认规则，数据库暂停/恢复确认后才传 `--yes`，MCP 计划任务创建/取消及 `run_ssh` 写操作确认后才传 `confirm=true`。实时状态查询失败时不能继续数据库写操作。

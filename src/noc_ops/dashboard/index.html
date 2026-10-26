@@ -538,9 +538,10 @@ const BILLING_COLS=[
   {field:'account', headerName:'账号', width:150, cellClass:'mono dim'},
   cloudCol(),
   {field:'service', headerName:'服务', flex:1, minWidth:280, suppressSizeToFit:false, cellClass:'mono'},
-  {field:'month', headerName:'月份', width:140, cellClass:'mono',
-     valueFormatter:p=>(p.value||'')+(p.data&&p.data.partial?' (至今)':'')},
-  {field:'cost_basis', headerName:'成本口径', width:190},
+  {field:'month', headerName:'月份', width:155, cellClass:'mono',
+     valueFormatter:p=>(p.value||'')+(p.data?.cloud==='cloudflare'?' (账期)':p.data?.partial?' (至今)':'')},
+  {field:'cost_basis', headerName:'成本口径', width:220,
+     tooltipValueGetter:p=>p.data?.cloud==='cloudflare'?'按账期起始月汇总按量费用，每日更新；不含完整发票的固定订阅费、税费及调整。':p.value},
 ];
 const SCHED_COLS=[
   {colId:'exec', headerName:'执行状态', width:104, valueGetter:p=>execStatus(p.data),
