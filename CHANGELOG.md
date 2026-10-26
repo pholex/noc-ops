@@ -1,5 +1,13 @@
 # 更新记录
 
+## 0.3.1
+
+- 增加 Oracle Cloud Media Streams CDN 配置与分发通道清单。
+- 增加 Google Cloud CDN 清单与 BigQuery 账单导出成本查询，按原币种展示。
+- 增加 Cloudflare Containers 实例、D1 数据库与 Billable Usage 按量费用采集。
+- Cloudflare 按真实账期归集费用，首页单独展示最近账期与起始日期，不计入自然月成本；旧汇总保留至成本刷新。
+- 增加 AWS Lambda 定时任务和 CloudWatch 告警通知剧本，精简发布与云能力说明。
+
 ## 0.3.0
 
 - 初始化覆盖九朵云，按账号合并并备份已有配置，支持预览。
