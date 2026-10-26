@@ -147,7 +147,8 @@
   .ov-card.ov-inst{width:165px}                   /* 实例：固定 165（明细行超长则省略号） */
   .ov-card.ov-msg{width:190px}                    /* 消息事件：固定 190 */
   .ov-card.ov-bill{width:165px}                   /* 本月成本：固定 165 */
-  .ov-card.ov-bill.ov-wide{width:auto;min-width:165px;max-width:240px}   /* 美元+人民币双币并列时按内容放宽 */
+  .ov-card.ov-bill.ov-wide{width:auto;min-width:165px;max-width:240px}   /* 多币种按内容放宽 */
+  .ov-bill .ov-v{display:block;font-size:16px;line-height:1.4;overflow-wrap:anywhere}
   .ov-card.ov-wide .ov-meta{overflow:hidden;text-overflow:ellipsis}
   .ov-card:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--border));transform:translateY(-1px);box-shadow:var(--shadow)}
   .ov-k{font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.3px;white-space:nowrap}
@@ -446,12 +447,13 @@ const LAMBDA_COLS=[
   {field:'last_modified', headerName:'最后修改', width:120, cellClass:'mono'},
 ];
 const CDN_COLS=[
-  {field:'domain', headerName:'对外 / 通道域名', width:260, cellClass:'alias mono',
+  {field:'domain', headerName:'域名 / 路由主机', width:260, cellClass:'alias mono',
      onCellClicked:p=>{ if(p.value && p.value!=='—') copyCell(p.value); },
      cellRenderer:p=>p.value?copyableCell(p.value):'—'},
   cloudCol(),
   {field:'name', headerName:'配置名称', width:170},
   {field:'service', headerName:'服务类型', width:190},
+  {field:'cache_mode', headerName:'缓存模式', width:170},
   {field:'channel_name', headerName:'分发通道', width:180},
   {field:'region_display', headerName:'区域', width:140},
   {field:'partition', headerName:'分区', width:96},
@@ -516,9 +518,10 @@ const MSG_COLS=[
   {field:'detail', headerName:'详情', width:300, cellClass:'dim'},
 ];
 const CUR_SYM={USD:'$',CNY:'¥'};
-const money=(v,cur)=>(v==null?'':(CUR_SYM[cur]||'')+Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
-// 成本按币种分列（USD=全球分区、CNY=aws-cn）：**不做汇率折算**，一行只落在自己币种那列，另一列留空。
-// 合计同理各列独立（updateBillingTotal），底部合计行用 amount_usd/amount_cny 字段直接喂值。
+const billingCurrencies=()=>[...new Set(['USD','CNY',...(DATA.billing||[]).map(b=>b.currency).filter(c=>/^[A-Z]{3}$/.test(c||''))])];
+const money=(v,cur)=>(v==null?'':(CUR_SYM[cur]||cur+' ')+Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
+// 成本按原币种分列，不做汇率折算；金额只落在自己币种那列。
+// 合计同理各列独立（updateBillingTotal），底部合计行用 amount_<currency> 字段。
 const amountCol=(cur,extra={})=>({
   colId:'amount_'+cur.toLowerCase(), headerName:`金额 (${cur})`, width:150,
   // 金额右对齐：type:'numericColumn' 只给表头挂 ag-right-aligned-header，单元格那半靠它自带的
@@ -533,8 +536,7 @@ const BILLING_COLS=[
   {field:'service', headerName:'服务', flex:1, minWidth:280, suppressSizeToFit:false, cellClass:'mono'},
   {field:'month', headerName:'月份', width:140, cellClass:'mono',
      valueFormatter:p=>(p.value||'')+(p.data&&p.data.partial?' (至今)':'')},
-  amountCol('USD',{sort:'desc'}),
-  amountCol('CNY'),
+  {field:'cost_basis', headerName:'成本口径', width:190},
 ];
 const SCHED_COLS=[
   {colId:'exec', headerName:'执行状态', width:104, valueGetter:p=>execStatus(p.data),
@@ -649,21 +651,19 @@ const gridOptions = {
   onSortChanged:saveState, onColumnMoved:saveState, onColumnResized:saveState,
 };
 // 成本 tab：把「当前筛选后」所有行的金额**按币种分别**求和，作为 ag-grid 底部固定合计行；离开该 tab 则清空。
-// 跨币种绝不相加（USD/CNY 各自一列一个合计，无汇率折算）；某币种无数据则该列合计留空。
+// 跨币种绝不相加；某币种无数据则该列合计留空。
 // 用 key 去重避免 setGridOption 触发的 onModelUpdated 递归。
 let _billTotalKey='';
 function updateBillingTotal(){
   if(!gridApi) return;
   if(view!=='billing'){ if(_billTotalKey!==''){ _billTotalKey=''; gridApi.setGridOption('pinnedBottomRowData',[]); } return; }
-  let su=0,nu=0,sc=0,nc=0;
-  gridApi.forEachNodeAfterFilter(nd=>{ const d=nd.data; if(!d) return;
-     if(d.currency==='CNY'){ sc+=(d.amount||0); nc++; } else { su+=(d.amount||0); nu++; } });
-  const n=nu+nc;
-  const key=[nu,su.toFixed(2),nc,sc.toFixed(2)].join('|');
+  const totals={}; let n=0;
+  gridApi.forEachNodeAfterFilter(nd=>{ const d=nd.data; if(!d || !/^[A-Z]{3}$/.test(d.currency||'')) return;
+     const key='amount_'+d.currency.toLowerCase(); totals[key]=(totals[key]||0)+(d.amount||0); n++; });
+  const key=JSON.stringify([n,totals]);
   if(key===_billTotalKey) return;
   _billTotalKey=key;
-  gridApi.setGridOption('pinnedBottomRowData', n?[{account:`合计（${n} 项）`,
-     amount_usd:nu?su:null, amount_cny:nc?sc:null, _total:true}]:[]);
+  gridApi.setGridOption('pinnedBottomRowData', n?[{account:`合计（${n} 项）`,...totals,_total:true}]:[]);
 }
 gridApi = createGrid(document.getElementById('grid'), gridOptions);
 mq.addEventListener('change', ()=> gridApi.setGridOption('theme', themeFor()));
@@ -746,6 +746,7 @@ function applyView(){
   document.getElementById('inst-filters').style.display = (view==='instances') ? 'flex' : 'none';
   document.getElementById('msg-filters').style.display = (view==='messaging') ? 'flex' : 'none';
   document.getElementById('billing-filters').style.display = (view==='billing') ? 'flex' : 'none';
+  if(view==='billing') v.cols=[...BILLING_COLS,...billingCurrencies().map(c=>amountCol(c,c==='USD'?{sort:'desc'}:{}))];
   gridApi.setGridOption('columnDefs', v.cols);
   gridApi.setGridOption('rowData', DATA[v.key]||[]);
   // 应用当前 tab 自己那份列状态（每个视图独立，互不干扰）
@@ -904,16 +905,11 @@ function renderOverview(){
   const bill=(DATA.billing||[]);
   const curM = bill.reduce((m,b)=> (b.month>m?b.month:m), '');
   const prevM = (ym=>{ if(!ym) return ''; let [y,m]=ym.split('-').map(Number); if(--m<1){m=12;y--;} return `${y}-${String(m).padStart(2,'0')}`; })(curM);
-  // 按币种分开统计，不折算：主数字给 USD（全球分区），CNY（aws-cn）走 ov-sub / meta 行
-  const sumM = (ym,cur) => bill.filter(b=>b.month===ym && (b.currency==='CNY')===(cur==='CNY'))
-                              .reduce((s,b)=>s+(b.amount||0),0);
-  const curCost=sumM(curM,'USD'), prevCost=sumM(prevM,'USD');
-  const curCny =sumM(curM,'CNY'), prevCny =sumM(prevM,'CNY');
-  const m0 = (v,cur) => CUR_SYM[cur]+Math.round(v).toLocaleString('en-US');
-  const usd0 = v => m0(v,'USD'), cny0 = v => m0(v,'CNY');
-  const prevMeta = bill.length&&prevM
-    ? '上月 '+[curCost||!curCny?usd0(prevCost):null, curCny?cny0(prevCny):null].filter(Boolean).join(' · ')
-    : '—';
+  const currencies=billingCurrencies().filter(c=>bill.some(b=>b.currency===c));
+  const sumM=(ym,cur)=>bill.filter(b=>b.month===ym && b.currency===cur).reduce((s,b)=>s+(b.amount||0),0);
+  const costLabel=ym=>currencies.map(c=>money(sumM(ym,c),c)).join(' · ');
+  const currentCost=bill.length?costLabel(curM):'—';
+  const prevMeta=bill.length&&prevM?'上月 '+costLabel(prevM):'—';
 
   // 卡片顺序与下方 tab 一致：实例 → 域名 → 数据库 → 存储 → 函数 → CDN → IAM → AI 密钥 → 消息 → 成本 → …
   const cards = `
@@ -958,9 +954,9 @@ function renderOverview(){
       <div class="ov-v">${msg.length}</div>
       <div class="ov-meta">${msg.length?`SQS ${mc('SQS')} · SNS ${mc('SNS')} · SES ${mc('SES')} · EB ${mc('EventBridge')}`:'—'}</div>
     </div>
-    <div class="ov-card ov-bill${curCny?' ov-wide':''}" onclick="switchView('billing')">
+    <div class="ov-card ov-bill${currencies.length>1?' ov-wide':''}" onclick="switchView('billing')">
       <div class="ov-k">本月成本</div>
-      <div class="ov-v">${bill.length?usd0(curCost):'—'}${curCny?`<span class="ov-sub"><span>${cny0(curCny)}</span></span>`:''}</div>
+      <div class="ov-v">${currentCost}</div>
       <div class="ov-meta">${prevMeta}</div>
     </div>
     <div class="ov-card" onclick="switchView('scheduled')">
@@ -1034,7 +1030,7 @@ function renderCollectionHealth(data){
   const time=value=>value?new Date(value).toLocaleString():'尚无记录';
   for(const s of rows){
     const row=body.insertRow();row.dataset.status=s.status;
-    const state=s.status==='ok'?'成功':s.status==='partial'?'列表已更新，补充字段不全':s.preserved?'采集失败，沿用旧数据':'采集失败，暂无可用数据';
+    const state=(s.errors||[]).includes('billing_export_not_configured')?'未配置 BigQuery 账单导出'+(s.preserved?'，沿用旧数据':''):s.status==='ok'?'成功':s.status==='partial'?'列表已更新，补充字段不全':s.preserved?'采集失败，沿用旧数据':'采集失败，暂无可用数据';
     for(const value of [`${s.cloud} / ${s.account}`,`${s.kind}${s.region?' / '+s.region:''}`,state,
                         s.row_count??0,time(s.attempted_at),time(s.last_success_at)]){
       row.insertCell().textContent=String(value);

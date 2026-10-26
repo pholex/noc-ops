@@ -8,7 +8,7 @@ README 里的表格说的是「有没有」，这里说「具体能看到什么�
 | 阿里云 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
 | 腾讯云 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
 | 火山引擎 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
-| Google Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ | | | ✓ | ✓ |
+| Google Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | Cloud CDN | ✓ | ✓ | | BigQuery 导出 | ✓ | ✓ |
 | Azure | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
 | Oracle Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | Media Streams | ✓ | | | ✓ | | ✓ |
 | Cloudflare | | ✓ 只读 | | ✓ | ✓ | ✓ | | | | | | |
@@ -90,3 +90,32 @@ README 里的表格说的是「有没有」，这里说「具体能看到什么�
 1. 在 agent 客户端里把一件运维做完。
 2. 让它「存成 runbook」，它会按 `runbooks/_TEMPLATE.md` 写一份。
 3. 下次同类需求，agent 会先找到这份剧本照着执行。看板「剧本」页列出全部剧本。
+
+## Google Cloud CDN 与成本
+
+Cloud CDN 盘点开启 `enableCDN` 的 Backend Services 和 Backend Buckets，一项后端一行，显示缓存模式、后端来源和 URL Map 路由主机名（含通配符）。路由主机名不代表已验证的 DNS、TLS 或公网可达性。未挂路由的 CDN 后端仍列出；Media CDN 不在此范围。需要 `compute.backendServices.list`、`compute.backendBuckets.list`，主机名补充需要 `compute.urlMaps.list`。补充查询失败时保留后端列表并标记 partial；任一后端列表失败时沿用项目旧清单。
+
+成本使用 Cloud Billing 的标准或详细 BigQuery 导出表，不支持 FOCUS 表。先在 Google Cloud 中开启账单导出，在工作区 `ops-config.toml` 对应的项目配置中填写：
+
+```toml
+[[gcp.accounts]]
+project = "example-project"
+configuration = "default"  # 可选，沿用该 gcloud 配置的身份
+billing_export_table = "example-billing.costs.gcp_billing_export_v1_XXXXXX_XXXXXX_XXXXXX"
+billing_location = "US"     # 与数据集位置一致
+billing_query_project = "example-billing"  # 可选，默认用导出表所在项目，承担查询费用
+billing_max_bytes = 1073741824              # 可选，单次查询默认上限 1 GiB
+```
+
+当前 gcloud 身份需要导出数据集上的 `roles/bigquery.dataViewer` 和查询项目上的 `roles/bigquery.jobUser`，并需已启用 BigQuery API。NOC 不自动开启 API 或账单导出，不保存访问令牌。
+
+```bash
+ops sync --account=example-project --kind=cdn
+ops sync --account=example-project --kind=billing
+```
+
+成本窗口为本月及前两个月，按项目、服务、UTC 使用月份和原币种聚合 `cost + credits`；负数抵扣保留，多币种分列合计，不折算汇率。按 `project.id` 过滤，所以同一导出表可供多个项目使用，不会重复计入整张结算账号账单；未归属项目的费用不纳入。此口径不等于发票月份，账单导出也存在延迟和历史覆盖限制，空查询不能证明无费用。
+
+BigQuery 查询可能计费；仅 `ops sync --kind=billing`（含看板成本刷新）执行，普通全量或账号刷新沿用 GCP 成本缓存。超过字节上限时查询失败并保留旧成本；未配置导出表显示“未配置”，权限不足、超时或分页失败也不会清空旧数据。
+
+参考：[账单导出设置](https://docs.cloud.google.com/billing/docs/how-to/export-data-bigquery-setup)、[标准导出字段](https://docs.cloud.google.com/billing/docs/how-to/export-data-bigquery-tables/standard-usage)。

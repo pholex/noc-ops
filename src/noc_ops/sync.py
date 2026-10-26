@@ -752,7 +752,7 @@ def _billing_with_cache(prev_data, max_age_hours=12):
     故若上次拉取距今 < max_age_hours 就沿用旧行，不重复调 CE。看板单刷 / `ops sync --kind=billing`
     走 _collect_kind 直拉，不受此缓存约束（强制刷新）。"""
     prev = (prev_data or {}).get("billing") or []
-    stamps = [b.get("fetched_at") for b in prev if b.get("fetched_at")]
+    stamps = [b.get("fetched_at") for b in prev if b.get("fetched_at") and b.get("cloud") != "gcp"]
     if stamps:
         try:
             newest = max(datetime.fromisoformat(s) for s in stamps)
@@ -762,8 +762,10 @@ def _billing_with_cache(prev_data, max_age_hours=12):
                 return prev
         except ValueError:
             pass
-    rows = _collect_kind("billing")
-    print(f"  💰 成本 {len(rows)} 行（Cost Explorer 实拉）")
+    # BigQuery queries can be billed: GCP requires an explicit --kind=billing refresh.
+    rows = _collect_kind("billing", clouds=set(PROVIDERS) - {"gcp"})
+    rows.extend(b for b in prev if b.get("cloud") == "gcp")
+    print(f"  💰 成本 {len(rows)} 行（GCP 沿用缓存；更新需显式 --kind=billing）")
     return rows
 
 
@@ -1001,6 +1003,7 @@ ACCOUNT_SCOPED_KINDS = {
     "tencent": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "billing", "credits"),   # TencentProvider 产出的九类（storage 走 coscli）
     "volcengine": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "billing", "credits"),   # VolcengineProvider 产出的九类（storage 走 tosutil）
     "oracle": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "billing"),
+    "gcp": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "apikeys", "billing", "credits"),
 }
 # 不带 --kind 时默认刷的类型：**排除 billing**——Cost Explorer 每请求计费（$0.01）；AWS 的 credits 也含一次 CE 调用，同样排除，
 # 不该被一句 `--account=X` 顺手带上；要刷成本请显式 `--account=X --kind=billing`。
@@ -1031,7 +1034,10 @@ def resolve_account(name):
         if cloud == "aws":
             continue
         for a in deploy_config.all_cloud_accounts(cloud):
-            if name in (a.get("profile"), a.get("account")):
+            if cloud == "gcp":
+                if name == a.get("project"):
+                    return cloud, a["project"]
+            elif name in (a.get("profile"), a.get("account")):
                 return cloud, (a.get("account") or a.get("profile"))
     return None, None
 
@@ -1043,7 +1049,7 @@ def _known_accounts_hint():
         if cloud == "aws":
             names = [a["profile"] for a in deploy_config.all_aws_accounts()]
         else:
-            names = [a.get("profile") or a.get("account")
+            names = [a.get("project") if cloud == "gcp" else a.get("profile") or a.get("account")
                      for a in deploy_config.all_cloud_accounts(cloud)]
         if names:
             parts.append(f"{PROVIDERS[cloud].display} {'/'.join(names)}")

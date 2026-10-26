@@ -40,6 +40,10 @@ account = "6543210987654321"
 [[gcp.accounts]]
 project = "demo-project-123456"
 configuration = "gcloud-config-1"
+billing_export_table = "demo-billing.costs.gcp_billing_export_v1_XXXXXX_XXXXXX_XXXXXX"
+billing_location = "US"
+billing_query_project = "demo-billing"
+billing_max_bytes = 1073741824
 ssh_user = "noc"
 ssh_key = "gce"
 

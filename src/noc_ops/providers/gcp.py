@@ -1,10 +1,11 @@
-"""Google Cloud 驱动（Compute / Storage / IAM / AI 密钥 / Cloud SQL / Functions·Run / Domains·DNS，shell 出 gcloud）。
+"""Google Cloud 驱动（Compute / Storage / IAM / AI 密钥 / Cloud SQL / Functions·Run / Domains·DNS / Cloud CDN / BigQuery 成本，沿用 gcloud 身份）。
 
 展示（只读）：list_instances（Compute Engine）/ list_storage（GCS 桶）/ list_iam（项目 IAM 绑定）
 / list_credits（结算账号状态·预算，需 SA 在结算账号上有 roles/billing.viewer）
 / list_apikeys（Cloud API Keys 元数据——AI Studio 的 Gemini key、Vertex AI Express key 本质都是它；只盘点，绝不取密钥串）
 / list_databases（Cloud SQL 实例）/ list_serverless（Cloud Functions 2nd gen + Cloud Run 服务）
-/ list_domains（Cloud Domains 注册域名 + Cloud DNS 托管区）。
+/ list_domains（Cloud Domains 注册域名 + Cloud DNS 托管区）/ list_cdn（Cloud CDN 后端）
+/ list_billing（已配置的 BigQuery 标准/详细账单导出，近三月项目净成本）。
 这些 API（sqladmin / cloudfunctions / run / domains / dns）项目没启用时 gcloud 直接报错，本模块只提示、
 **绝不替用户启用 API**（启用是写操作）。
 生命周期（第二阶段）：reboot_argv（reset 硬重启，免确认自动跑）/ status_argv；启停经通用
@@ -17,9 +18,13 @@ import json
 import re
 import subprocess
 import sys
+import time
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 
-from ..collection import observed
+from ..collection import failed, observed, optional
 from .. import deploy_config
 from ..aws_safety import is_read_only_gcp, is_reboot_gcp
 from .base import Provider, resolve_keyfile
@@ -162,6 +167,152 @@ def _tld_type(domain):
     return "ccTLD" if len(tld) == 2 else "gTLD"
 
 
+@observed(result="nullable")
+def _compute_list(account, resource):
+    data = _gcloud(account, ["gcloud", "compute", resource, "list",
+                             "--project", account["project"], "--format", "json"])
+    if not isinstance(data, list) or any(not isinstance(r, dict) or not r.get("name") for r in data):
+        return None
+    return data
+
+
+def _backend_ref(value):
+    return "projects/" + value.split("projects/", 1)[-1] if "projects/" in value else value
+
+
+def _route_backends(node):
+    """Read URL-map routing targets, including weighted backend services."""
+    found = set()
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in ("service", "defaultService", "backendService") and isinstance(value, str):
+                found.add(_backend_ref(value))
+            elif key != "requestMirrorPolicy":
+                found.update(_route_backends(value))
+    elif isinstance(node, list):
+        for value in node:
+            found.update(_route_backends(value))
+    return found
+
+
+@optional
+def _cdn_hosts(account):
+    result = {}
+    for url_map in _compute_list(account, "url-maps") or []:
+        defaults = {k: v for k, v in url_map.items() if k in ("defaultService", "defaultRouteAction")}
+        for backend in _route_backends(defaults):
+            result.setdefault(backend, set()).add("*")
+        matchers = {m["name"]: m for m in url_map.get("pathMatchers", [])}
+        for rule in url_map.get("hostRules", []):
+            for backend in _route_backends(matchers.get(rule.get("pathMatcher"), {})):
+                result.setdefault(backend, set()).update(rule.get("hosts", []))
+    return result
+
+
+@observed(result="token")
+def _billing_token(account):
+    """Use the same gcloud identity as inventory; never log token or CLI output."""
+    cmd = ["gcloud", "auth", "print-access-token", "--quiet", "--project", account["project"]]
+    if account.get("configuration"):
+        cmd += ["--configuration", account["configuration"]]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=30)
+        return r.stdout.strip() if r.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+@observed(result="nullable")
+def _billing_request(token, project, path, body=None):
+    url = "https://bigquery.googleapis.com/bigquery/v2/projects/" + urllib.parse.quote(project, safe="") + path
+    request = urllib.request.Request(url, data=json.dumps(body).encode() if body is not None else None,
+                                     headers={"Authorization": "Bearer " + token,
+                                              "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            data = json.load(response)
+        if not isinstance(data, dict) or data.get("errors") or data.get("error"):
+            return None
+        return data
+    except (OSError, ValueError):
+        # HTTP error bodies and request details can contain credentials or SQL.
+        return None
+
+
+@observed(result="nullable")
+def _billing_query(account, start, end):
+    """Query standard/detailed billing export; bound query cost and read all pages."""
+    table = account.get("billing_export_table", "")
+    if not table:
+        failed("billing_export_not_configured")
+        print("  ⚠️ GCP 成本未配置：请设置 billing_export_table（BigQuery 账单导出表）。", file=sys.stderr)
+        return None
+    if not isinstance(table, str) or not re.fullmatch(r"[a-z][a-z0-9-]*\.[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_-]*", table):
+        failed("billing_export_invalid_config")
+        return None
+    project = account.get("billing_query_project") or table.split(".")[0]
+    limit = account.get("billing_max_bytes", 1073741824)
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
+        failed("billing_export_invalid_config")
+        return None
+    sql = f"""SELECT COALESCE(service.description, 'Other') AS service,
+FORMAT_TIMESTAMP('%Y-%m', usage_start_time, 'UTC') AS month, currency,
+CAST(SUM(CAST(cost AS NUMERIC)) +
+SUM(IFNULL((SELECT SUM(CAST(c.amount AS NUMERIC)) FROM UNNEST(credits) c), 0)) AS STRING) AS amount
+FROM `{table}`
+WHERE project.id = @project AND usage_start_time >= @start AND usage_start_time < @end
+GROUP BY service, month, currency ORDER BY month, service, currency"""
+    body = {"query": sql, "useLegacySql": False, "useQueryCache": True,
+            "maximumBytesBilled": str(limit), "timeoutMs": 10000, "maxResults": 1000,
+            "parameterMode": "NAMED", "queryParameters": [
+                {"name": name, "parameterType": {"type": typ}, "parameterValue": {"value": value}}
+                for name, typ, value in (("project", "STRING", account["project"]),
+                                         ("start", "TIMESTAMP", start), ("end", "TIMESTAMP", end))]}
+    if account.get("billing_location"):
+        body["location"] = account["billing_location"]
+    token = _billing_token(account)
+    if not token:
+        return None
+    page = _billing_request(token, project, "/queries", body)
+    rows, seen = [], set()
+    deadline = time.monotonic() + 120
+    job = {}
+    while page is not None:
+        job = page.get("jobReference") or job
+        if page.get("jobComplete") is True:
+            fields = (page.get("schema") or {}).get("fields")
+            if fields is not None and [f.get("name") for f in fields] != ["service", "month", "currency", "amount"]:
+                return None
+            values = page.get("rows", [])
+            if not isinstance(values, list):
+                return None
+            rows.extend(values)
+            next_page = page.get("pageToken")
+            if not next_page:
+                if "totalRows" not in page or int(page["totalRows"]) != len(rows):
+                    return None
+                return rows
+            if next_page in seen:
+                return None
+            seen.add(next_page)
+        elif page.get("jobComplete") is False:
+            next_page = None
+        else:
+            return None
+        if not job.get("jobId") or time.monotonic() >= deadline:
+            failed("timeout")
+            return None
+        params = {"timeoutMs": 10000, "maxResults": 1000}
+        location = job.get("location") or body.get("location")
+        if location:
+            params["location"] = location
+        if next_page:
+            params["pageToken"] = next_page
+        path = "/queries/" + urllib.parse.quote(job["jobId"], safe="") + "?" + urllib.parse.urlencode(params)
+        page = _billing_request(token, project, path)
+    return None
+
+
 class GcpProvider(Provider):
     cloud = "gcp"
     cli = "gcloud"
@@ -281,6 +432,68 @@ class GcpProvider(Provider):
             })
         out.sort(key=lambda c: c["account"])
         return out
+
+    def list_cdn(self):
+        """Cloud CDN-enabled backend services and backend buckets, one row per backend."""
+        out = []
+        for account in self._accounts():
+            project = account.get("project")
+            if not project:
+                continue
+            resources = []
+            for resource, api_name in (("backend-services", "backendServices"), ("backend-buckets", "backendBuckets")):
+                resources.extend((api_name, row) for row in _compute_list(account, resource) or []
+                                 if row.get("enableCDN") is True)
+            hosts = _cdn_hosts(account) if resources else {}
+            for api_name, row in resources:
+                region = (row.get("region") or "global").rsplit("/", 1)[-1]
+                scope = "global" if region == "global" else "regions/" + region
+                ref = _backend_ref(row.get("selfLink") or f"projects/{project}/{scope}/{api_name}/{row['name']}")
+                domains = sorted(hosts.get(ref, []))
+                origin = ("gs://" + row["bucketName"]) if api_name == "backendBuckets" and row.get("bucketName") else ", ".join(
+                    b["group"] for b in row.get("backends", []) if b.get("group"))
+                out.append({"id": ref, "name": row["name"], "cloud": self.cloud, "account": project,
+                            "region": region, "region_display": region, "partition": "global",
+                            "service": "Cloud CDN / " + ("Backend bucket" if api_name == "backendBuckets" else "Backend service"),
+                            "domain": ", ".join(domains), "aliases": ", ".join(domains), "origin": origin,
+                            "enabled": True, "status": "enabled", "cert": "—", "price_class": "—",
+                            "cache_mode": (row.get("cdnPolicy") or {}).get("cacheMode") or "—",
+                            "last_modified": "", "comment": row.get("description") or ""})
+        return sorted(out, key=lambda r: (r["account"], r["id"]))
+
+    def list_billing(self, months=3):
+        """Project/service/UTC usage-month net costs from BigQuery billing export."""
+        now = datetime.now(timezone.utc)
+        month_index = now.year * 12 + now.month - months
+        start = f"{month_index // 12:04d}-{month_index % 12 + 1:02d}-01T00:00:00Z"
+        fetched = now.isoformat(timespec="seconds")
+        out = []
+        for account in self._accounts():
+            if not account.get("project"):
+                continue
+            rows = _billing_query(account, start, fetched)
+            if rows is None:
+                print("  ⚠️ GCP 成本查询未完成；请检查账单导出配置、BigQuery 权限与查询字节上限。", file=sys.stderr)
+                continue
+            for row in rows:
+                try:
+                    service, month, currency, amount = [f["v"] for f in row["f"]]
+                    number = Decimal(amount)
+                    if (not number.is_finite() or not isinstance(service, str)
+                            or not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month or "")
+                            or not re.fullmatch(r"[A-Z]{3}", currency or "")):
+                        raise ValueError("invalid billing row")
+                    amount = float(number.quantize(Decimal("0.01")))
+                except (KeyError, TypeError, ValueError, InvalidOperation):
+                    failed("invalid_response")
+                    continue
+                if amount:
+                    out.append({"cloud": self.cloud, "account": account["project"], "service": service,
+                                "month": month, "amount": amount, "currency": currency,
+                                "period_start": month + "-01", "partial": month == now.strftime("%Y-%m"),
+                                "fetched_at": fetched, "source": "BigQuery billing export",
+                                "cost_basis": "净成本 / UTC 使用月"})
+        return sorted(out, key=lambda r: (r["account"], r["month"], r["service"], r["currency"]))
 
     # —— Cloud Storage 桶 ——
     def list_storage(self):

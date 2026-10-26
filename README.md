@@ -15,7 +15,7 @@
 | | 机器 | 域名 | 数据库 | 存储 | 函数 | CDN | 成本 | 重启 |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | AWS · 阿里云 · 腾讯云 · 火山引擎 · Azure | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Google Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ |
+| Google Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓† | ✓ |
 | Oracle Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | ✓* | ✓ | ✓ |
 | Cloudflare | | ✓ | | ✓ | ✓ | ✓ | | |
 | Supabase | | | ✓ | ✓ | ✓ | | | 暂停 / 恢复 |
@@ -23,6 +23,8 @@
 | 机房：群晖、任何能 SSH 的机器 | ✓ | | | | | | | |
 
 \* Oracle Cloud CDN 支持 Media Streams 的 OCI Edge / Akamai 分发配置盘点，仅用于视频分发。可用 `ops sync --kind=cdn --account=<OCI profile>` 刷新，看板展示配置、通道、域名、区域与启用状态。
+
+† Google Cloud 成本读取已配置的 BigQuery 账单导出，按项目、服务、UTC 使用月份汇总抵扣后净成本。需事先开启导出并授予查询权限；仅显式刷新成本时查询。
 
 各云细节与全部命令见 [docs/clouds.md](docs/clouds.md)。
 

@@ -45,6 +45,10 @@ partition = "global"          # china | global —— 决定扫哪组区域
 # [[gcp.accounts]]
 # project = "<gcp-project-id>"
 # configuration = "default"   # 可选：gcloud 命名配置（多登录时用）
+# billing_export_table = "example-billing.costs.gcp_billing_export_v1_XXXXXX_XXXXXX_XXXXXX"
+# billing_location = "US"     # 可选：BigQuery 数据集位置
+# billing_query_project = "example-billing"  # 可选：查询计费项目，默认导出表所在项目
+# billing_max_bytes = 1073741824  # 可选：查询上限 1 GiB；仅显式 --kind=billing 时查询
 
 # ===== Microsoft Azure（多订阅，只读展示 VM/存储/DNS/数据库/Function，VM 可重启，不用就整段删）=====
 # account=订阅 id；认证沿用本机 az（az login / service principal），noc 不存密钥。
