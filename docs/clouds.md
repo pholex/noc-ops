@@ -11,7 +11,7 @@ README 里的表格说的是「有没有」，这里说「具体能看到什么�
 | Google Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | Cloud CDN | ✓ | ✓ | | BigQuery 导出 | ✓ | ✓ |
 | Azure | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ | ✓ |
 | Oracle Cloud | ✓ | ✓ | ✓ | ✓ | ✓ | Media Streams | ✓ | | | ✓ | | ✓ |
-| Cloudflare | | ✓ 只读 | | ✓ | ✓ | ✓ | | | | | | |
+| Cloudflare | Containers | ✓ 只读 | D1 | ✓ | ✓ | ✓ | | | | | | |
 | Supabase | | | ✓ | ✓ | ✓ | | | | | | | 暂停/恢复 |
 | 内网虚拟化平台：VMware / 深信服 HCI | ✓ | | | | | | | | | | | ✓ |
 | 内网其它主机：群晖、任何能 SSH 的物理机或虚机 | ✓ | | | | | | | | | | | |
@@ -32,13 +32,21 @@ README 里的表格说的是「有没有」，这里说「具体能看到什么�
 
 ## 各云的补充说明
 
-- **Cloudflare**：每个 zone 带状态、DNS 记录数与代理数、SSL 模式、套餐、NS；在 Cloudflare Registrar 注册的域名还有到期日。R2 桶进存储、Workers 脚本进函数、开了代理记录的 zone 进 CDN。只读，不做任何写操作。
+- **Cloudflare**：Containers 容器实例进机器、D1（SQLite）进数据库。每个 zone 带状态、DNS 记录数与代理数、SSL 模式、套餐、NS；在 Cloudflare Registrar 注册的域名还有到期日。R2 桶进存储、Workers 脚本进函数、开了代理记录的 zone 进 CDN。只读，不做任何写操作。
 - **Supabase**：每个项目带算力档位（vCPU / 内存）、库实际占用、PITR 与最近备份、网络访问限制、自定义域名。Storage 桶进存储（公开桶标 ⚠）、Edge Functions 进函数。唯一的写操作是 `ops db pause|resume` 暂停 / 恢复项目，可逆，先回显再确认。
 - **火山引擎 / 腾讯云的对象存储**：TOS 桶和 COS 桶不在各自 CLI 里，分别另装官方 `tosutil`（`tosutil config -interactive`）和 `coscli`（`coscli config init`）配好即可纳管。
 - **Azure 成本**：MCA 订阅的成本只在计费档案层级有数据，驱动直接查档案层级，覆盖该档案下的全部订阅。
 - **AI 密钥**：只盘元数据（绑定的 API、服务账号、创建时间），永远不取密钥串。
 - **额度**：指信用余额、免费额度到期、超额保护，写在 `inventory.md` 的「云账务 / 额度」一节，不单独开标签页。
 - **定时重启**（看板「计划任务」）：用一个 AWS 账号里的 EventBridge + Lambda 做调度器，可以派发到其它云的实例。
+
+### Cloudflare Containers 与 D1
+
+使用现有账号标签与 API token。Containers 需要 `Workers Containers Read`，D1 需要 `D1 Read`，账号发现需要 `Account Settings Read`。可用 `ops sync --kind=instances --account=<标签>` 或 `ops sync --kind=databases --account=<标签>` 分别刷新；列表或分页失败会保留该标签的旧清单。
+
+Containers 按应用列出实际容器实例，展示状态、当前部署区域、规格、所属应用和镜像。无实例的应用不计为机器，不提供 SSH 或重启。D1 展示名称、UUID、容量、创建日期和只读副本配置；详情失败仍保留基本信息并标记采集不完整。区域为 jurisdiction 限制（未设置时显示自动），不代表实时运行位置；API 未提供的状态与连接端点显示为空。不执行 SQL，也不采集容器环境变量。
+
+接口说明：[Containers 实例](https://developers.cloudflare.com/api/resources/containers/subresources/applications/subresources/instances/methods/list/)、[D1 数据库](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/get/)。
 
 ## 命令全集
 

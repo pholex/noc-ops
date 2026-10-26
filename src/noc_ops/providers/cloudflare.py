@@ -1,11 +1,11 @@
-"""Cloudflare 驱动（DNS zone → 「域名」tab，只读）。
+"""Cloudflare 驱动（Containers / D1 / DNS / R2 / Workers / CDN，只读）。
 
 list_domains 把每个 zone 当一条「域名」列进看板「域名」tab（registrar=Cloudflare），并尽量读全：
   - zone 状态 / 是否暂停 / 套餐 / 分配的 NS；
   - DNS 记录总数与其中走代理（橙云）的条数；
   - SSL 模式（off / flexible / full / strict）；
   - 若域名是在 Cloudflare Registrar 注册的，补上注册到期日与剩余天数（和 Route53 / 阿里云域名同一列）。
-不是 compute 云——没有实例/存储/IAM，也没有 reboot（基类默认返回空/不实现）。**不做任何写操作。**
+Containers 实例不提供 SSH 或 reboot；D1 只读元数据，不执行 SQL。**不做任何写操作。**
 
 认证：Cloudflare API token（**密钥**）。按 noc 规矩**绝不进 ops-config.toml**，存 macOS Keychain，
 运行时用 `security find-generic-password` 读取（token 不进配置、不进进程参数、不进 chat）。
@@ -19,8 +19,9 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+from urllib.parse import quote, urlencode
 
-from ..collection import observed, optional
+from ..collection import failed, observed, optional
 from .. import deploy_config, credentials
 from .base import Provider
 
@@ -31,6 +32,9 @@ _SCOPE_HINT = {
     "registrar": "Account → Registrar:Read（只有 Cloudflare Registrar 注册的域名才有到期日）",
     "r2": "Account → Workers R2 Storage:Read",
     "workers": "Account → Workers Scripts:Read",
+    "containers": "Account → Workers Containers:Read",
+    "d1": "Account → D1:Read",
+    "accounts": "Account → Account Settings:Read",
 }
 
 
@@ -63,9 +67,9 @@ class CloudflareProvider(Provider):
             if not quiet:
                 print(f"  ⚠️ Cloudflare API {path}: {e}", file=sys.stderr)
             return None
-        if not data.get("success"):
+        if not isinstance(data, dict) or not data.get("success"):
             if not quiet:
-                print(f"  ⚠️ Cloudflare API {path}: {data.get('errors')}", file=sys.stderr)
+                print("  ⚠️ Cloudflare API：请求失败或响应无效", file=sys.stderr)
             return None
         return data
 
@@ -129,18 +133,143 @@ class CloudflareProvider(Provider):
         return m
 
     def _accounts(self, token):
-        """token 能看到的 Cloudflare account（R2 / Workers 挂在 account 下，不在 zone 下）。"""
-        out, page = [], 1
+        """token 能看到的 Cloudflare account；分页失败由采集会话保留旧清单。"""
+        return self._list_pages(token, "/accounts", "accounts", per_page=50)
+
+    def _list_pages(self, token, path, feature, *, cursor=False, identity="id", per_page=100):
+        """Cloudflare 页码 / 游标列表；缺页、重复页和无效响应不能当成空清单。"""
+        out, seen_ids, seen_tokens = [], set(), set()
+        page, page_token = 1, None
         while True:
-            data = self._get(token, f"/accounts?per_page=50&page={page}")
-            if not data:
-                break
-            out.extend(a for a in (data.get("result") or []) if a.get("id"))
-            info = data.get("result_info") or {}
-            if page >= int(info.get("total_pages") or 1):
-                break
-            page += 1
-        return out
+            query = {"per_page": per_page}
+            if cursor:
+                if page_token:
+                    query["page_token"] = page_token
+            else:
+                query["page"] = page
+            data = self._get(token, path + "?" + urlencode(query), quiet=True)
+            if data is None:
+                failed()
+                print(f"  ⚠️ Cloudflare {feature} 查询失败，请检查网络及 {_SCOPE_HINT[feature]} 权限", file=sys.stderr)
+                return []
+            rows, info = data.get("result"), data.get("result_info") or {}
+            if (not isinstance(rows, list) or not isinstance(info, dict)
+                    or any(not isinstance(r, dict) or not isinstance(r.get(identity), str)
+                           or not r[identity] for r in rows)):
+                failed("invalid_response")
+                return []
+            ids = [r[identity] for r in rows]
+            if len(set(ids)) != len(ids) or seen_ids.intersection(ids):
+                failed("invalid_pagination")
+                return []
+            seen_ids.update(ids)
+            out.extend(rows)
+            if cursor:
+                page_token = info.get("next_page_token")
+                if not page_token:
+                    return out
+                if not isinstance(page_token, str) or page_token in seen_tokens:
+                    failed("invalid_pagination")
+                    return []
+                seen_tokens.add(page_token)
+            else:
+                total, pages = info.get("total_count"), info.get("total_pages")
+                if any(v is not None and (type(v) is not int or v < 0) for v in (total, pages)):
+                    failed("invalid_pagination")
+                    return []
+                if total is not None:
+                    if len(out) >= total:
+                        return out
+                elif pages is not None:
+                    if page >= pages:
+                        return out
+                elif len(rows) < per_page:
+                    return out
+                if not rows:
+                    failed("invalid_pagination")
+                    return []
+                page += 1
+
+    def list_instances(self):
+        """Containers 的实际容器实例（含未运行实例），不把应用配置冒充机器。"""
+        out = []
+        for label, token in self._each_account():
+            for acct in self._accounts(token):
+                aid = acct["id"]
+                path = f"/accounts/{quote(aid, safe='')}/containers/applications"
+                for app in self._list_pages(token, path, "containers", cursor=True):
+                    instances = self._list_pages(token, path + "/" + quote(app["id"], safe="")
+                                                 + "/instances-v2", "containers", cursor=True)
+                    for inst in instances:
+                        loc = inst.get("location") or {}
+                        config = inst.get("configuration") or {}
+                        status = inst.get("status") or {}
+                        region = loc.get("region") or "unknown"
+                        shape = [f"{config['vcpu']} vCPU"] if config.get("vcpu") is not None else []
+                        if config.get("memory") is not None:
+                            shape.append(f"{config['memory']} MiB")
+                        out.append({
+                            "id": f"cloudflare:{aid}:{app['id']}:{inst['id']}",
+                            "instance_id": inst["id"], "name": inst.get("name") or inst["id"],
+                            "cloud": self.cloud, "profile": label, "kind": "container",
+                            "cf_account": acct.get("name") or "", "cf_account_id": aid,
+                            "application": app.get("name") or app["id"], "application_id": app["id"],
+                            "image": inst.get("image") or "", "type": "Container" + (" · " + " / ".join(shape) if shape else ""),
+                            "vcpu": config.get("vcpu"), "memory_mib": config.get("memory"),
+                            "disk_mb": config.get("disk"), "state": status.get("state") or "unknown",
+                            "status_updated_at": status.get("updated_at") or "", "exit_code": status.get("exit_code"),
+                            "started_at": inst.get("started_at") or "",
+                            "region": region, "region_display": region if region != "unknown" else "未知",
+                            "flag": self.flag, "az": loc.get("name") or "",
+                            "public_ip": None, "private_ip": None, "key_name": None,
+                            "ssh_alias": None, "ssh_user": None, "key_file": None,
+                            "connect": "none", "proxyjump": None, "verified": False,
+                        })
+        return sorted(out, key=lambda r: (r["profile"], r["application"], r["name"], r["id"]))
+
+    @optional
+    def _d1_details(self, token, path):
+        data = self._get(token, path, quiet=True)
+        if data is None:
+            failed()
+            return {}
+        result = data.get("result")
+        if not isinstance(result, dict):
+            failed("invalid_response")
+            return {}
+        size, replicas = result.get("file_size"), result.get("read_replication")
+        if (size is not None and (type(size) not in (int, float) or size < 0)
+                or replicas is not None and not isinstance(replicas, dict)):
+            failed("invalid_response")
+            return {}
+        return result
+
+    def list_databases(self):
+        """D1 元数据；详情为可选补充，不查询业务数据或已弃用的表数量。"""
+        out = []
+        for label, token in self._each_account():
+            for acct in self._accounts(token):
+                aid = acct["id"]
+                path = f"/accounts/{quote(aid, safe='')}/d1/database"
+                for db in self._list_pages(token, path, "d1", identity="uuid"):
+                    detail = self._d1_details(token, path + "/" + quote(db["uuid"], safe=""))
+                    jurisdiction = db.get("jurisdiction") or detail.get("jurisdiction") or ""
+                    size = detail.get("file_size")
+                    replication = (detail.get("read_replication") or {}).get("mode") or ""
+                    out.append({
+                        "id": f"cloudflare:{aid}:d1:{db['uuid']}", "uuid": db["uuid"],
+                        "name": db.get("name") or db["uuid"], "cloud": self.cloud, "account": label,
+                        "cf_account": acct.get("name") or "", "cf_account_id": aid,
+                        "region": jurisdiction or "auto", "region_display": jurisdiction or "自动",
+                        "jurisdiction": jurisdiction, "flag": self.flag,
+                        "engine": "D1 (SQLite)", "class": "Serverless", "state": "—", "endpoint": "—",
+                        "storage": f"{size / 1024 ** 2:.2f} MiB" if size is not None else "—",
+                        "db_size_bytes": size, "read_replication": replication,
+                        "created": (db.get("created_at") or detail.get("created_at") or "")[:10],
+                        "version": db.get("version") or detail.get("version") or "",
+                        "note": "D1" + (f" · 只读副本 {replication}" if replication else ""),
+                    })
+        return sorted(out, key=lambda r: (r["account"], r["name"], r["id"]))
 
     def _each_account(self):
         """(配置标签, token) 生成器；Keychain 没 token 的账号提示并跳过。"""

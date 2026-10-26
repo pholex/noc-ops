@@ -55,9 +55,10 @@ partition = "global"          # china | global —— 决定扫哪组区域
 # [[azure.accounts]]
 # subscription = "<azure-subscription-id>"
 
-# ===== Cloudflare（DNS zone 纳入「域名」tab，只读，不用就整段删）=====
+# ===== Cloudflare（Containers / D1 / DNS / R2 / Workers / CDN，只读，不用就整段删）=====
 # token 只读权限：Zone:Read、DNS:Read、Zone Settings:Read；要显示注册到期日再加 Account → Registrar:Read；
 # R2 桶要 Account → Workers R2 Storage:Read，Workers 脚本要 Account → Workers Scripts:Read（缺哪项只少那一类/列）。
+# Containers 要 Workers Containers:Read，D1 要 D1:Read；账号发现要 Account Settings:Read。
 # token 是密钥，不放配置——存 Keychain：
 #   security add-generic-password -U -s noc-cloudflare -a cloudflare -T /usr/bin/security -w
 # [[cloudflare.accounts]]

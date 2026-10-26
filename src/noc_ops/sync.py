@@ -159,7 +159,7 @@ LOCAL_MARKER_END = "# <<< ops-sync managed (本地) <<<"
 
 # 非 AWS 云在 inventory 里的分区标题
 CLOUD_SECTION = {"tencent": "腾讯云 Lighthouse", "aliyun": "阿里云 ECS", "volcengine": "火山引擎 ECS", "gcp": "Google Cloud",
-                 "azure": "Microsoft Azure", "oracle": "Oracle Cloud"}
+                 "azure": "Microsoft Azure", "oracle": "Oracle Cloud", "cloudflare": "Cloudflare Containers"}
 
 # 非公网机器（要内网/VPN 或 Tailscale 才连得到，常规全量刷新连不上时不该判定为"已删除"）：
 # 全量 `ops sync` 默认跳过这些 provider 的扫描、沿用上次数据。
@@ -1004,6 +1004,7 @@ ACCOUNT_SCOPED_KINDS = {
     "volcengine": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "billing", "credits"),   # VolcengineProvider 产出的九类（storage 走 tosutil）
     "oracle": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "billing"),
     "gcp": ("instances", "domains", "databases", "storage", "serverless", "cdn", "iam", "apikeys", "billing", "credits"),
+    "cloudflare": ("instances", "domains", "databases", "storage", "serverless", "cdn"),
 }
 # 不带 --kind 时默认刷的类型：**排除 billing**——Cost Explorer 每请求计费（$0.01）；AWS 的 credits 也含一次 CE 调用，同样排除，
 # 不该被一句 `--account=X` 顺手带上；要刷成本请显式 `--account=X --kind=billing`。
@@ -1676,6 +1677,9 @@ def write_inventory(scoped, records, extra, resources):
                    "vmware": "SSH（无管控 API 纳管，开关机去 vCenter）",
                    "synology": "SSH（无管控 API 纳管）", "local": "SSH（无管控 API 纳管）"}
     for c in sorted({t["cloud"] for t in extra}):
+        if c == "cloudflare":
+            L.append("- Cloudflare Containers 为只读容器实例清单；无 SSH，不支持 `ops reboot`。")
+            continue
         label = CLOUD_SECTION.get(c, c).split()[0]
         cinsts = [t for t in extra if t["cloud"] == c]
         n_ssh = sum(1 for t in cinsts if t.get("ssh_alias"))

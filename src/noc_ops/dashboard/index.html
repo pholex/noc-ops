@@ -360,6 +360,8 @@ const COLS = [
   {colId:'region', headerName:'区域', width:135, valueGetter:p=>p.data.flag+' '+p.data.region_display,
      filterValueGetter:p=>p.data.region_display},
   {field:'type', headerName:'类型', width:120, cellClass:'mono'},
+  {field:'application', headerName:'容器应用', width:170, hide:true},
+  {field:'image', headerName:'容器镜像', width:240, hide:true, tooltipField:'image'},
   {field:'private_ip', headerName:'私网 IP', width:145, cellClass:'mono'},
   {field:'public_ip', headerName:'公网 IP', width:145,
      cellClass:p=>p.value?'alias mono':'mono dim',
@@ -368,10 +370,10 @@ const COLS = [
   {field:'id', headerName:'实例 ID', width:205, cellClass:'alias mono',
      onCellClicked:p=>copyCell(p.value),
      cellRenderer:p=>copyableCell(p.value)},
-  {field:'ssh_user', headerName:'用户', width:100, valueFormatter:p=>p.data.connect==='ssm'?'—':(p.value||'?')},
+  {field:'ssh_user', headerName:'用户', width:100, valueFormatter:p=>['ssm','none'].includes(p.data.connect)?'—':(p.value||'?')},
   {colId:'connect', headerName:'连接', width:150,
      // ssm = AWS 实例无密钥对：设计上不开 SSH，只能 SSM Session Manager（无别名、不开网页终端）
-     valueGetter:p=>p.data.connect==='ssm'?'SSM':p.data.connect==='jump'?('经 '+(p.data.proxyjump||'跳板')):'直连',
+     valueGetter:p=>p.data.connect==='none'?'无 SSH':p.data.connect==='ssm'?'SSM':p.data.connect==='jump'?('经 '+(p.data.proxyjump||'跳板')):'直连',
      cellClass:p=>p.data.connect==='jump'?'jump':p.data.connect==='ssm'?'ssm':'',
      cellStyle:p=>(p.data.ssh_alias||_canTerminal(p.data))?{cursor:'pointer'}:null,
      onCellClicked:p=>{ if(p.data.ssh_alias||_canTerminal(p.data)) launchTerminal(p.data.id); },
@@ -413,6 +415,8 @@ const cloudCol = (w=90)=>({field:'cloud', headerName:'云', width:w, comparator:
   valueFormatter:p=>p.node.rowPinned?'':cloudName(p.value), cellClass:p=>p.node.rowPinned?'':'cloud-'+(p.value||'aws')});
 const DB_COLS=[
   {field:'name', headerName:'名称', width:200, cellClass:'mono'},
+  {field:'uuid', headerName:'D1 数据库 ID', width:280, hide:true, cellClass:'mono'},
+  {field:'created', headerName:'创建日期', width:130, hide:true},
   cloudCol(),
   {field:'account', headerName:'账号', width:140, cellClass:'mono dim'},
   {field:'region_display', headerName:'区域', width:110},
@@ -757,6 +761,8 @@ function applyView(){
        if(saved && saved.sig===colSig(view) && Array.isArray(saved.state))
          gridApi.applyColumnState({state:saved.state,applyOrder:true});
      }catch(e){}
+  if(view==='instances') gridApi.setColumnsVisible(['application','image'], (DATA.instances||[]).some(r=>r.kind==='container'));
+  if(view==='databases') gridApi.setColumnsVisible(['uuid','created'], (DATA.databases||[]).some(r=>r.cloud==='cloudflare'));
   gridApi.setGridOption('quickFilterText', val('f-q'));
   gridApi.onFilterChanged();
   fitFillColumn();               // 主列补满右侧空白（须在列状态应用之后，见 fitFillColumn 注释）
