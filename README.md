@@ -74,6 +74,12 @@ ops sync --local    # 只扫机房里的机器（人要在内网或 VPN 里）
 
 公开包附带 [通用运维剧本](src/noc_ops/assets/runbooks/README.md)，包括 S3 使用核查、ALB 日志下线、EC2 安全组收口、证书续期排障、访问来源分析、[EventBridge Scheduler + Lambda 定时任务](src/noc_ops/assets/runbooks/aws-lambda-scheduled-task.md)，以及 [CloudWatch 告警配置与通知验证](src/noc_ops/assets/runbooks/aws-cloudwatch-alarm-notification.md)。工作区没有 Markdown 剧本时，初始化会复制这些文件；已有剧本时不会自动补齐或覆盖。
 
+## 问题反馈
+
+安装或使用中遇到问题，打开 [SkillHub 技能页](https://skillhub.cn/skills/indiv-xy/multicloud-ops)，点击「评论」留言。
+
+也可以直接对 AI 说「帮我整理问题反馈」。AI 会整理版本、操作步骤和必要的报错信息，隐去敏感内容，生成一段可复制的文字；检查后粘贴到评论区即可。
+
 ## 扩展与贡献
 
 参见 [CONTRIBUTING.md](CONTRIBUTING.md)。

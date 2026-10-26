@@ -65,6 +65,14 @@ metadata:
 - **新增实例/账号后**：`ops sync`（自动纳管、配 SSH、刷新 inventory 与看板）。
 - **只想刷新某一个云账号**（如刚在某账号里动了机器/换了 EIP）：`ops sync --account=<账号>`——只扫该账号（十几秒 vs 全量一两分钟），同云其它账号/其它云的数据原样沿用；再加 `--kind=` 可只刷一类。账号名：**AWS** 用账号 ID，**阿里云**用 profile 名或账号 ID，**火山引擎**用主账号 ID。可按账号刷的类型随云而异——AWS：instances/domains/databases/storage/serverless/cdn/iam/apikeys/messaging/billing；阿里云：instances/storage/domains/databases/serverless/cdn/iam/billing/credits；腾讯云：instances/domains/databases/storage/serverless/cdn/iam/billing/credits（storage 走 coscli）；火山引擎：instances/domains/databases/storage/serverless/cdn/iam/billing/credits（storage 走 tosutil）；AWS 另有 credits（预算告警 / 免费额度 / 本月 credits 抵扣）。阿里云 BssOpenApi 与火山账单接口都不计费，可随手 `--kind=billing`；AWS Cost Explorer 每请求 $0.01，billing 与 credits 都要显式 `--kind=` 才刷，别频繁刷。点名了该云没有的类型会被拒绝并列出可用值，照提示改即可。
 
+## 问题反馈
+
+安装、使用问题或功能建议，统一到 [SkillHub 技能页](https://skillhub.cn/skills/indiv-xy/multicloud-ops)的「评论」留言。用户也可以直接说「帮我整理问题反馈」。
+
+收到整理反馈的请求时，优先使用当前对话中的信息；必要时只读检查本机系统和 `ops --version`。整理操作系统、客户端、ops 与 skill 版本、操作步骤、预期结果、实际现象和必要的报错片段；无法获取的项目注明未知，不要求用户先修好工具才能反馈。
+
+生成可复制的反馈草稿前，隐去 Token、密码、私钥、真实账号与资源标识、内网地址和个人路径；不附完整配置、资源清单或原始日志。把草稿和评论区入口交给用户检查后自行提交，不自动发布评论，也不为收集反馈重新执行重启、停机等写操作。
+
 ## 能力沉淀
 完成一项**之前没有对应 runbook 的运维**后，主动提议把它沉淀成 `{{NOC_HOME}}/runbooks/<kebab-name>.md`（参考 `runbooks/_TEMPLATE.md`：触发意图/目标解析/执行步骤/是否写操作/注意事项），用户同意后写。写完要让 NOC 机读清单登记新剧本，跑 `ops sync --index`（只刷 runbooks/操作日志索引、零网络秒级，**别**用全量 `ops sync`，那会重扫所有云；`--local` / `--tailscale` 是刷非公网机器的，不对口）。
 
