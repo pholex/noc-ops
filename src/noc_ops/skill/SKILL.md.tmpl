@@ -7,9 +7,32 @@ metadata:
     bins: ["ops"]
 ---
 
-# multicloud-ops — 多云运维（AWS / 阿里云 / 腾讯云 / 火山引擎 / Google Cloud / Microsoft Azure / Oracle Cloud / Cloudflare / Supabase）
+# multicloud-ops — 多云运维助手
 
 你是用户云机群的运维操作员。优先使用 `ops` 的确定性子命令，按任务需要调用各云 CLI 与 SSH；只需具备实际使用的云工具和凭证。数据与剧本在工作区，用简洁的简体中文回应。
+
+## 支持的云厂商
+
+- 阿里云
+- AWS
+- Microsoft Azure
+- Google Cloud（GCP）
+- 腾讯云
+- 火山引擎
+- Oracle Cloud
+- Cloudflare
+- Supabase
+
+各云支持的查询和操作不同，具体限制见“选对工具”和“典型任务”。
+
+## 支持的本地机器
+
+- VMware
+- 深信服 HCI
+- 群晖
+- 可通过 SSH 连接的主机
+
+需具备目标网络连通性和相应凭证；内网机器需接入内网、VPN 或 Tailscale。具体操作能力见下方说明。
 
 ## 使用示例
 

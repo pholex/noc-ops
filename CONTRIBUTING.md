@@ -46,13 +46,15 @@ uv tool install --force --no-cache '.[all]' # 把本仓装成全局 ops 试跑
 
 ## 新增一朵云 / 一类资源 / 一个看板 tab
 
+新增或调整能力时，使用 [云能力核验清单](docs/cloud-capability-checklist.md) 核对官方依据、适用范围、权限、费用和失败处理。按具体能力记录验证结果，不把云厂商支持等同于全部产品或操作均支持。
+
 这几处必须一起改，漏一处就出现「看板有、agent 不知道」：
 
 1. `providers/<cloud>.py`：继承 `base.Provider`，实现对应的 `list_*`，能重启的实现 `reboot_argv` / `status_argv`；`sync.py` 把结果并进 `data.json`。
 2. `dashboard/index.html`：tab 与列。
 3. `skill/SKILL.md.tmpl`：agent 靠它才知道有这类资源、怎么查。同步到公开 skill 仓 [pholex/multicloud-ops](https://github.com/pholex/multicloud-ops) 的 `skills/multicloud-ops/SKILL.md`。
 4. `README.md` 的支持矩阵。
-5. `ops setup` 重扇出 skill，再重装全局 `ops`。
+5. 重装全局 `ops`，再运行 `ops setup` 重扇出 skill，验证生成版。
 
 provider 的约束：云 CLI 缺失时返回空列表并只提示一次，不抛异常；空配置（账号没填区域）同样返回空；只读方法绝不带副作用。
 
