@@ -13,7 +13,7 @@
 全局 `ops` 是 `uv tool` 装的 wheel **拷贝**，不跟随 `src/`。改完源码（尤其新增子命令）立刻：
 
 ```bash
-uv tool install --force --no-cache '<本仓绝对路径>[all]'   # [all] 带上 mcp 可选依赖；本机还要 --with 私有扩展包，别把 agent 弄丢
+uv tool install --force --no-cache '<本仓绝对路径>[all]'   # [all] 带上 mcp 可选依赖
 ```
 
 漏这步会让"代码已改好、跑起来还是旧行为"，排查成本极高。
@@ -22,7 +22,7 @@ uv tool install --force --no-cache '<本仓绝对路径>[all]'   # [all] 带上 
 ```bash
 uv run --extra dev pytest -m unit -q     # Tier 1：离线、零 LLM、秒级，改完就跑
 ```
-公开仓只有 Tier 1；agent 行为评测（Tier 2，真调 LLM）随终端 agent 一起在 noc-internal。
+公开仓只有 Tier 1；agent 行为评测（Tier 2，真调 LLM）不在本仓。
 
 ## 新增 provider / 资源种类 / 看板 tab 的同步清单
 这几处必须一起改，漏一处就出现「看板有、agent 不知道」：
