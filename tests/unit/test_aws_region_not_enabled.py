@@ -36,3 +36,11 @@ def test_ses_skipped_where_no_endpoint(monkeypatch):
     monkeypatch.setattr(aws, "_aws_json", lambda p, r, a: calls.append((r, a[0])) or {})
     aws.AwsProvider()._messaging_in("p", "ap-east-1")
     assert ("ap-east-1", "ses") not in calls and ("ap-east-1", "sqs") in calls
+
+
+def test_describe_instances_opt_in_region_not_enabled_is_empty(monkeypatch):
+    from noc_ops import sync
+    err = "An error occurred (AuthFailure) when calling the DescribeInstances operation"
+    monkeypatch.setattr(sync.subprocess, "run", _fake_run(254, err))
+    assert sync.describe("p", "ap-east-2") == []
+    assert sync.describe("p", "us-east-1") is None

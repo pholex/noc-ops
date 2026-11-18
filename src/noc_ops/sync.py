@@ -133,7 +133,7 @@ def _providers(clouds=None):
         out[c] = p
     return out
 from .providers.base import resolve_keyfile
-from .providers.aws import REGION_META, regions_for
+from .providers.aws import REGION_META, regions_for, _region_not_enabled
 
 # --------------------------------------------------------------------------
 # 配置（数据落在工作区，见 paths.py）
@@ -261,6 +261,8 @@ def describe(profile, region):
         env={**os.environ, "AWS_PAGER": ""},
     )
     if r.returncode != 0:
+        if _region_not_enabled(region, r.stderr):
+            return []                  # 未启用的 opt-in 区域 = 没有实例，不算采集失败
         # 未启用/无权限的区域由采集状态统一报告；其它错误额外打印 CLI 诊断。
         err = r.stderr.strip()
         if not any(k in err for k in ("not authorized", "opt-in", "could not be found",
