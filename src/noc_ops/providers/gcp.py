@@ -101,11 +101,12 @@ def _gcloud(account, args, timeout=60):
         low = (r.stderr or "").lower()
         # 按错误类别给可操作的提示。注意 PERMISSION_DENIED 的报错里也含 "authenticated as …"，
         # 所以不能拿裸 "auth" 判掉登录，否则缺权限会被误导成「跑 gcloud auth login」。
-        # 「API 未启用」要先判——它的报错同时带 "does not have permission to access …" 字样，
+        # 「API 未启用」要先判（并直接按空结果返回）——它的报错同时带 "does not have permission to access …" 字样，
         # 后判会被误归成缺权限。
         if "not enabled" in low or "has not been used in project" in low:
-            hint = "（该项目未启用此 API：`gcloud services enable <api>.googleapis.com --project <P>`）"
-        elif "does not have permission" in low or "permission_denied" in low or "permission denied" in low:
+            # 项目没启用该 API = 没开通这类服务、没有资源：按成功的空结果处理，不报警也不记失败
+            return [] if "list" in args else {}
+        if "does not have permission" in low or "permission_denied" in low or "permission denied" in low:
             hint = "（当前身份缺该资源权限——结算账号级要 roles/billing.viewer，项目级要对应 Viewer）"
         elif "reauth" in low or "credential" in low or "invalid_grant" in low or "not logged in" in low:
             hint = "（gcloud 未登录/令牌过期？跑 `gcloud auth login`）"

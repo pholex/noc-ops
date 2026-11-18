@@ -232,9 +232,9 @@ API_DISABLED_STDERR = (
 )
 
 
-def test_api_not_enabled_yields_empty_and_one_hint(monkeypatch, capsys):
+def test_api_not_enabled_yields_empty_silently(monkeypatch, capsys):
     """真 gcloud 报错形态（2026-10-25 实测）：rc=1，stderr 带「has not been used in project … or it is disabled」。
-    走到 subprocess 层：返回空、stderr 一行「启用 API」提示、不抛、不去启用。"""
+    走到 subprocess 层：视为没开通该服务→返回空、不打告警、不抛、不去启用。"""
     seen = []
 
     def fake_run(cmd, **kw):
@@ -245,7 +245,7 @@ def test_api_not_enabled_yields_empty_and_one_hint(monkeypatch, capsys):
 
     assert PROVIDERS["gcp"].list_databases() == []
     err = capsys.readouterr().err
-    assert err.count("⚠️ GCP my-project-123 sql instances") == 1 and "services enable" in err
+    assert err == ""
     # 永远只读：没有任何 enable / create / delete 调用；带 --quiet 且关 stdin（否则 gcloud 的「要启用吗？」会挂死）
     cmd, kw = seen[0]
     assert cmd[:4] == ["gcloud", "sql", "instances", "list"] and "--quiet" in cmd
@@ -289,3 +289,19 @@ def test_sync_collect_kinds(monkeypatch):
     doms = sync._collect_kind("domains", clouds={"gcp"})
     assert [d["domain"] for d in doms] == ["example.com"] and doms[0]["abandoned"] == ""
     assert sync.REGISTRAR_CLOUD.get("Google Cloud") == "gcp"
+
+
+def test_gcloud_api_not_enabled_is_empty_success(monkeypatch, capsys):
+    import subprocess
+    from noc_ops.providers import gcp
+    err = "ERROR: (gcloud.functions.list) PERMISSION_DENIED: Cloud Functions API has not been used in project p before or it is disabled."
+    monkeypatch.setattr(gcp.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="", stderr=err))
+    acct = {"project": "p"}
+    assert gcp._gcloud(acct, ["gcloud", "functions", "list"]) == []
+    assert gcp._gcloud(acct, ["gcloud", "projects", "get-iam-policy", "p"]) == {}
+    assert capsys.readouterr().err == ""
+    other = "ERROR: PERMISSION_DENIED: caller does not have permission"
+    monkeypatch.setattr(gcp.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="", stderr=other))
+    assert gcp._gcloud(acct, ["gcloud", "functions", "list"]) is None
