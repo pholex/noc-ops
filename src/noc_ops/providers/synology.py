@@ -82,12 +82,34 @@ def get_sid(base_url: str, username: str, keychain_service: str, keychain_accoun
     return sid
 
 
+_SID_NOT_FOUND = 119   # DSM：会话 ID 无效（被同名会话顶掉 / 超时）
+
+
+class SynologyApiError(ValueError):
+    def __init__(self, api, error):
+        super().__init__(f"{api} 返回错误: {error}")
+        self.code = (error or {}).get("code") if isinstance(error, dict) else None
+
+
 def _api(base_url: str, sid: str, api: str, version: str = "1", method: str = "get", **kw) -> dict:
     params = urllib.parse.urlencode({"api": api, "version": version, "method": method, "_sid": sid, **kw})
     data = _get(f"{base_url}/webapi/entry.cgi?{params}")
     if not data.get("success"):
-        raise ValueError(f"{api} 返回错误: {data.get('error')}")
+        raise SynologyApiError(api, data.get("error"))
     return data.get("data", {})
+
+
+def _api_relogin(base_url, username, ks_svc, ks_acct, sid, api, **kw):
+    """调 API；遇 119（SID 失效，常因两个 sync 同用 session=noc 互相顶掉）就清缓存、重新登录并重试一次。
+    返回 (data, 可能已更新的 sid)。"""
+    try:
+        return _api(base_url, sid, api, **kw), sid
+    except SynologyApiError as e:
+        if e.code != _SID_NOT_FOUND:
+            raise
+    _SESSION_CACHE.pop(f"{base_url}:{username}", None)
+    sid = get_sid(base_url, username, ks_svc, ks_acct)
+    return _api(base_url, sid, api, **kw), sid
 
 
 # ─── 工具函数 ─────────────────────────────────────────────────────────────────
@@ -137,7 +159,8 @@ class SynologyProvider(Provider):
                 continue
 
             try:
-                sys_info = _api(base_url, sid, "SYNO.Core.System", version="1", method="info")
+                sys_info, sid = _api_relogin(base_url, username, ks_svc, ks_acct, sid,
+                                             "SYNO.Core.System", version="1", method="info")
             except Exception as e:
                 print(f"  ⚠️ Synology {base_url} 系统信息: {e}", file=sys.stderr)
                 sys_info = {}
@@ -154,7 +177,8 @@ class SynologyProvider(Provider):
             # 卷容量
             vol_desc = ""
             try:
-                stor = _api(base_url, sid, "SYNO.Storage.CGI.Storage", version="1", method="load_info")
+                stor, sid = _api_relogin(base_url, username, ks_svc, ks_acct, sid,
+                                         "SYNO.Storage.CGI.Storage", version="1", method="load_info")
                 vols = stor.get("volumes", [])
                 if vols:
                     total = sum(int(v.get("size", {}).get("total", 0)) for v in vols)
