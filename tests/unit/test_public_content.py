@@ -180,3 +180,23 @@ def test_new_tag_checks_snapshot_and_only_unpublished_commits(repo):
     git(repo, 'add', 'example.txt')
     # Tree scanning is independent of staged or working-tree changes.
     assert run(repo, '--tree', clean).returncode == 0
+
+
+def _wheel(tmp_path, files):
+    import zipfile
+    path = tmp_path / 'pkg-0-py3-none-any.whl'
+    with zipfile.ZipFile(path, 'w') as archive:
+        for name, data in files.items():
+            archive.writestr(name, data)
+    return path
+
+
+def test_wheel_scan_passes_clean_and_blocks_leaks(tmp_path, capsys):
+    clean = _wheel(tmp_path, {'noc_ops/a.py': b'x = 1\n', 'noc_ops/f.woff2': b'\x00\x01'})
+    assert checker.main(['--wheel', str(clean)]) == 0
+    secret = 'AK' + 'IA' + 'A' * 16
+    leaky = _wheel(tmp_path, {'noc_ops/a.py': f'k = "{secret}"\n'.encode(), 'noc_ops/ops-config.toml': b''})
+    assert checker.main(['--wheel', str(leaky)]) == 1
+    err = capsys.readouterr().err
+    assert 'cloud-access-key' in err and 'private-workspace-file' in err
+    assert secret not in err

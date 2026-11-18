@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import sys
+import zipfile
 
 RULES = {
     'private-key': r'-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----',
@@ -22,6 +23,7 @@ COMPILED = {key: re.compile(value, re.I if key == 'development-narrative' else 0
 ASSIGNMENT = re.compile(r'''(?i)\b(?:password|passwd|api[_-]?key|api[_-]?token|access[_-]?token|client[_-]?secret|secret[_-]?key|aws_secret_access_key)\b["']?\s*[:=]\s*["']([A-Za-z0-9_+/=.-]{16,})["']''')
 BLOCKED_FILES = {'ops-config.toml', 'data.json', 'inventory.md', 'local-servers.toml',
                  'capabilities.toml', '.mcp.json'}
+BINARY_SUFFIXES = {'.woff', '.woff2', '.png', '.ico', '.jpg', '.gif'}
 POLICY_FILES = {'AGENTS.md', 'CLAUDE.md', 'PUBLIC_CONTENT.md'}
 
 
@@ -97,10 +99,13 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument('--commits', help='scan changed blobs and messages in a Git revision range')
     group.add_argument('--history', action='store_true', help='audit all reachable snapshots and messages')
     group.add_argument('--tree', help='scan a complete committed snapshot')
+    group.add_argument('--wheel', type=Path, help='scan every file inside a built wheel')
     args = parser.parse_args(argv)
     root = Path(os.fsdecode(git('rev-parse', '--show-toplevel')).strip())
     if args.commit_msg:
         args.commit_msg = args.commit_msg.resolve()
+    if args.wheel:
+        args.wheel = args.wheel.resolve()
     os.chdir(root)
     terms = local_terms()
     failed = 0
@@ -115,8 +120,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f'{prefix}{safe_label(path, terms)}:{line}: {category}', file=sys.stderr)
         failed += len(findings)
 
+    def check_blocked(path: str):
+        nonlocal failed
+        print(f'{safe_label(path, terms)}:0: private-workspace-file', file=sys.stderr)
+        failed += 1
+
     if args.commit_msg:
         check('COMMIT_MESSAGE', args.commit_msg.read_bytes(), message=True)
+    elif args.wheel:
+        with zipfile.ZipFile(args.wheel) as archive:
+            for info in archive.infolist():
+                name = info.filename
+                if info.is_dir() or PurePosixPath(name).suffix in BINARY_SUFFIXES:
+                    continue
+                check(name, archive.read(info))
+                if PurePosixPath(name).name in BLOCKED_FILES:
+                    check_blocked(name)
     elif args.tree:
         for path, oid in tree_files(args.tree):
             check(path, git('cat-file', 'blob', oid))
