@@ -119,5 +119,5 @@ metadata:
 完成一项**之前没有对应 runbook 的运维**后，主动提议把它沉淀成 `{{NOC_HOME}}/runbooks/<kebab-name>.md`（参考 `runbooks/_TEMPLATE.md`：触发意图/目标解析/执行步骤/是否写操作/注意事项），用户同意后写。写完要让 NOC 机读清单登记新剧本，跑 `ops sync --index`（只刷 runbooks/操作日志索引、零网络秒级，**别**用全量 `ops sync`，那会重扫所有云；`--local` / `--tailscale` 是刷非公网机器的，不对口）。
 
 ## 注意
-- 多云 CLI 路径分散；若报"命令找不到"，确认 PATH 含 `/usr/local/bin`(aws)、`/opt/homebrew/bin`(aliyun)、python 同级 bin(tccli)。`ops doctor` 可体检。
+- 多云 CLI 路径分散；若报"命令找不到"，确认 PATH 含 `/usr/local/bin`(aws)、`/opt/homebrew/bin`(aliyun)、python 同级 bin(tccli)。`ops doctor` 可体检。阿里云域名扫描（`ops sync --kind=domains`）依赖域名插件：报错或清单里没有阿里云域名时，确认已装 `aliyun plugin install --name aliyun-cli-domain`（阿里云 CLI 3.5 起必装）。
 - shell 一律用绝对路径，别依赖 `cd`。
