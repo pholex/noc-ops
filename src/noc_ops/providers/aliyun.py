@@ -200,7 +200,9 @@ class AliyunProvider(Provider):
             profile, account = a.get("profile"), a.get("account", "")
             if not profile:
                 continue
-            data = _ali_json(a, ["domain", "QueryDomainList", "--PageNum", "1", "--PageSize", "100"])
+            # aliyun CLI ≥3.5 拦截直调域名 OpenAPI（QueryDomainList → 报 SDK.ServerError），须装插件 `aliyun plugin install --name aliyun-cli-domain`；
+            # --view raw 保持原 Data.Domain 结构（summary 视图缺注册日期/类型）。
+            data = _ali_json(a, ["domain", "list", "--view", "raw", "--page", "1", "--limit", "100"])
             if data is None:
                 continue
             for x in data.get("Data", {}).get("Domain", []):
