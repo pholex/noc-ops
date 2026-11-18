@@ -376,6 +376,21 @@ class CloudflareProvider(Provider):
                 continue
             yield label, token
 
+    def _r2_not_enabled(self, token, aid):
+        """账号没在 Dashboard 开通 R2 时返回 403 / code 10042「Please enable R2」：属于「没开通」，不是权限问题。"""
+        req = urllib.request.Request(_API + f"/accounts/{aid}/r2/buckets", headers={"Authorization": "Bearer " + token})
+        try:
+            urllib.request.urlopen(req, timeout=30).close()
+        except urllib.error.HTTPError as e:
+            try:
+                body = e.read().decode("utf-8", "replace")
+            except OSError:
+                body = ""
+            return e.code == 403 and "enable R2" in body
+        except (urllib.error.URLError, OSError):
+            return False
+        return False
+
     def list_storage(self):
         """R2 桶 → 「存储」tab。需要 Account → Workers R2 Storage:Read；没权限只提示一次、整类留空。"""
         out = []
@@ -383,6 +398,8 @@ class CloudflareProvider(Provider):
             state = {}
             for acct in self._accounts(token):
                 aid = acct["id"]
+                if self._r2_not_enabled(token, aid):
+                    continue
                 data = self._feature(token, label, "r2", f"/accounts/{aid}/r2/buckets", state)
                 if data is None:
                     continue
