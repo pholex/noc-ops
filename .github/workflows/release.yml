@@ -34,3 +34,31 @@ jobs:
         run: python scripts/check-published.py --version "${RELEASE_TAG#v}" --dist dist >> "$GITHUB_OUTPUT"
       - uses: pypa/gh-action-pypi-publish@release/v1
         if: steps.existing.outputs.published != 'true'
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; skipping."
+            exit 0
+          fi
+          python3 - "${RELEASE_TAG#v}" > notes.md <<'PY'
+          import re, sys
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          m = re.search(rf"^## {re.escape(sys.argv[1])}\n(.*?)(?=^## |\Z)", text, re.S | re.M)
+          assert m, "CHANGELOG.md has no section for this version"
+          print(m.group(1).strip())
+          PY
+          gh release create "$RELEASE_TAG" dist/*.whl --title "$RELEASE_TAG" --notes-file notes.md --verify-tag --latest
