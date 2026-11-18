@@ -35,6 +35,21 @@ def regions_for(account):
     return deploy_config.scan_regions(account["partition"])
 
 
+# 需手动启用（opt-in）的区域：没启用时 STS 令牌在该区域无效，报 InvalidClientTokenId 等——属于「没开通」，不是故障
+_OPT_IN_REGIONS = frozenset({
+    "af-south-1", "ap-east-1", "ap-east-2", "ap-south-2", "ap-southeast-3", "ap-southeast-4",
+    "ap-southeast-5", "ap-southeast-6", "ap-southeast-7", "ca-west-1", "eu-central-2",
+    "eu-south-1", "eu-south-2", "il-central-1", "me-central-1", "me-south-1", "mx-central-1"})
+_NOT_ENABLED_ERRORS = ("InvalidClientTokenId", "UnrecognizedClientException", "OptInRequired", "AuthFailure")
+# 没有 SES 端点的区域：连接会 SSL EOF，每次都「失败」，直接跳过
+_NO_SES_REGIONS = frozenset({"ap-east-1"})
+
+
+def _region_not_enabled(region, stderr):
+    """opt-in 区域未启用：区域在 opt-in 名单内且报错是令牌/开通类。其他区域同样报错仍是真故障（凭证坏了）。"""
+    return region in _OPT_IN_REGIONS and any(e in (stderr or "") for e in _NOT_ENABLED_ERRORS)
+
+
 @observed(result="nullable")
 def _aws_json(profile, region, args):
     """跑 aws <args>（json），失败/未启用区域静默返回 None。"""
@@ -47,6 +62,8 @@ def _aws_json(profile, region, args):
     except FileNotFoundError:          # 本机没装 aws CLI：当作查不到，由 sync 层统一提示
         return None
     if r.returncode != 0:
+        if _region_not_enabled(region, r.stderr):
+            return {}                  # 未启用的 opt-in 区域 = 没有资源，按成功的空结果处理
         return None
     if not (r.stdout or "").strip():   # rc=0 但不输出任何内容（如 budgets describe-budgets 没预算时）= 成功的空结果，不是失败
         return {}
@@ -271,7 +288,7 @@ class AwsProvider(Provider):
         for t in (d or {}).get("Topics", []) or []:
             rows.append(row("SNS", t.get("TopicArn", "").rsplit(":", 1)[-1]))
 
-        d = _aws_json(profile, region, ["ses", "list-identities"])
+        d = None if region in _NO_SES_REGIONS else _aws_json(profile, region, ["ses", "list-identities"])
         for ident in (d or {}).get("Identities", []) or []:
             rows.append(row("SES", ident, "邮箱" if "@" in ident else "域名"))
 
