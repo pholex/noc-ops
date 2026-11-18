@@ -194,6 +194,22 @@ class CloudflareProvider(Provider):
                     return []
                 page += 1
 
+    def _containers_not_enabled(self, token, path):
+        """账号在 Workers Free 计划时 Containers 接口返回 401「requires the Workers Paid plan」：
+        属于「没开通」，不是故障；只认这条明确文案，其余失败照常报警。"""
+        req = urllib.request.Request(_API + path + "?per_page=1", headers={"Authorization": "Bearer " + token})
+        try:
+            urllib.request.urlopen(req, timeout=30).close()
+        except urllib.error.HTTPError as e:
+            try:
+                body = e.read().decode("utf-8", "replace")
+            except OSError:
+                body = ""
+            return e.code == 401 and "Workers Paid" in body
+        except (urllib.error.URLError, OSError):
+            return False
+        return False
+
     def list_instances(self):
         """Containers 的实际容器实例（含未运行实例），不把应用配置冒充机器。"""
         out = []
@@ -201,6 +217,8 @@ class CloudflareProvider(Provider):
             for acct in self._accounts(token):
                 aid = acct["id"]
                 path = f"/accounts/{quote(aid, safe='')}/containers/applications"
+                if self._containers_not_enabled(token, path):
+                    continue
                 for app in self._list_pages(token, path, "containers", cursor=True):
                     instances = self._list_pages(token, path + "/" + quote(app["id"], safe="")
                                                  + "/instances-v2", "containers", cursor=True)
