@@ -16,7 +16,7 @@ ops update --yes        # 已确认的自动化调用
 ## 维护者发布
 
 1. 修改 `__version__` 并更新 `CHANGELOG.md`；同步 `multicloud-ops` 引导 skill 的版本及能力说明。
-2. 跑 `python -m pytest -m unit -q`、`python -m build`、`python scripts/check-release.py --dist dist`、`python -m twine check dist/*`。构建目录只保留这次 wheel/sdist。
+2. 跑 `python -m pytest -m unit -q`、`python -m build --wheel`、`python scripts/check-release.py --dist dist`、`python -m twine check dist/*`。构建目录只保留这次 wheel（不发布源码包）。
 3. 审查后提交代码，给同一提交打 `vX.Y.Z` tag。确认发布后推送分支与 tag。
 4. `release.yml` 先执行跨系统测试、构建与安装检查，再校验 tag/产物版本，最后通过 PyPI Trusted Publishing 发布。普通分支 push 不发布包。
 

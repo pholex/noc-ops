@@ -10,9 +10,9 @@ from urllib.request import urlopen
 
 
 def published(version, dist):
-    files = list(Path(dist).glob('*.whl')) + list(Path(dist).glob('*.tar.gz'))
-    if len(files) != 2:
-        raise ValueError('Expected one wheel and one sdist')
+    files = list(Path(dist).glob('*.whl'))
+    if len(files) != 1 or len([f for f in Path(dist).iterdir() if not f.name.startswith('.')]) != 1:
+        raise ValueError('Expected exactly one wheel')
     try:
         with urlopen(f'https://pypi.org/pypi/noc-ops/{version}/json', timeout=30) as response:
             data = json.load(response)

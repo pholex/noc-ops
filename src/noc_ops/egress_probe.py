@@ -35,10 +35,9 @@ _HTTP_TIMEOUT = 8
 _UA = "noc-ops/1.0"          # 具名 UA：部分站点（CF 后面的）会拿默认 urllib UA 当爬虫封
 
 # ---- 隧道特征：按**网段**认，不按接口编号认（编号是 macOS 抢最低空闲号分配的，重连即变）----
-# ⚠️ `100.64.0.0/10` 是**整个 CGNAT 段**，不是 Tailscale 专属：2026-08-02 实测某 OpenVPN
-# 隧道拿到 `100.88.0.3`，若按段认就会被误判成 Tailscale——而且恰好把一条**正在承载出口**
-# 的链路判成"不参与出口分流"，是最坏的一类错。所以 Tailscale 一律**问它自己**要地址
-# （`tailscale ip -4`），CGNAT 段只当兜底提示。
+# ⚠️ `100.64.0.0/10` 是**整个 CGNAT 段**，不是 Tailscale 专属：其它 VPN（如 OpenVPN）的隧道
+# 也可能拿到该段地址，按段认会误判成 Tailscale，并把正在承载出口的链路判成"不参与出口分流"。
+# 所以 Tailscale 一律**问它自己**要地址（`tailscale ip -4`），CGNAT 段只当兜底提示。
 _CGNAT_NET = ipaddress.ip_network("100.64.0.0/10")
 _FAKEIP_NET = ipaddress.ip_network("198.18.0.0/15")        # Clash/mihomo TUN 的 fake-ip 惯用段
 

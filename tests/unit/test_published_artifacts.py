@@ -15,7 +15,7 @@ spec.loader.exec_module(module)
 
 @pytest.fixture
 def artifacts(tmp_path):
-    for name in ['noc_ops-0.3.0.whl', 'noc_ops-0.3.0.tar.gz']:
+    for name in ['noc_ops-0.3.0.whl']:
         (tmp_path / name).write_bytes(b'synthetic artifact')
     return tmp_path
 

@@ -1,5 +1,11 @@
 # 更新记录
 
+## 0.3.2
+
+- 阿里云域名清单改用 CLI 域名插件（`aliyun-cli-domain`，阿里云 CLI 3.5 起必装），修复域名扫描报 `SDK.ServerError`。
+- GCP 未启用的 API 按空结果处理，不再逐项刷警告。
+- 发行包只发布 wheel，不再发布源码包。
+
 ## 0.3.1
 
 - 增加 Oracle Cloud Media Streams CDN 配置与分发通道清单。
