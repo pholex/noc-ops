@@ -42,6 +42,7 @@ curl -fsSL https://raw.githubusercontent.com/pholex/noc-ops/main/scripts/install
 |---|---|---|
 | [AWS](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | `curl -fsSL https://awscli.amazonaws.com/v2/install.sh \| bash` | `aws configure` |
 | [阿里云](https://help.aliyun.com/zh/cli/install-cli-on-macos) | `brew install aliyun-cli` | `aliyun configure` |
+| 阿里云域名插件（看域名才需要，CLI 3.5 起必装） | `aliyun plugin install --name aliyun-cli-domain` | 沿用上面的阿里云登录 |
 | [腾讯云](https://cloud.tencent.com/document/product/1278/46705) | `pip install tccli` | `tccli configure` |
 | [腾讯云对象存储](https://cloud.tencent.com/document/product/436/63144)（可选） | 下载 `coscli` 二进制 | `coscli config init` |
 | [火山引擎](https://github.com/volcengine/volcengine-cli) | `npm install -g @volcengine/cli` | `ve configure` |
